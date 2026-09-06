@@ -25,8 +25,8 @@ void main() {
               .overrideWith((ref) => MockIdentityNotifier(mockIdentity)),
           readinessStateProvider.overrideWithValue(ReadinessState.ready),
         ],
-        child: MaterialApp(
-          home: const MainScaffoldScreen(),
+        child: const MaterialApp(
+          home: MainScaffoldScreen(),
         ),
       ),
     );

@@ -9,9 +9,9 @@ import 'package:neresend/domain/models/transfer_progress.dart';
 void main() {
   group('Domain Models Tests', () {
     test('ChunkRange interval merging and containment', () {
-      final r1 = const ChunkRange(0, 100);
-      final r2 = const ChunkRange(101, 200);
-      final r3 = const ChunkRange(300, 400);
+      const r1 = ChunkRange(0, 100);
+      const r2 = ChunkRange(101, 200);
+      const r3 = ChunkRange(300, 400);
 
       expect(r1.count, 101);
       expect(r1.contains(50), isTrue);
@@ -56,7 +56,7 @@ void main() {
     });
 
     test('TransferManifest JSON serialization with TransferItems', () {
-      final item = const TransferItem(
+      const item = TransferItem(
         id: 'file-1',
         fileName: 'report.pdf',
         size: 2048576,
@@ -88,18 +88,18 @@ void main() {
     });
 
     test('TransferProgress fraction and state predicates', () {
-      final progress = TransferProgress(
+      const progress = TransferProgress(
         transferId: 't-1',
         currentFileName: 'video.mp4',
         currentFileIndex: 0,
         totalFiles: 1,
-        verifiedRanges: const [ChunkRange(0, 50)],
+        verifiedRanges: [ChunkRange(0, 50)],
         currentChunkIndex: 50,
         totalChunks: 100,
         bytesTransferred: 50000000,
         totalBytes: 100000000,
         speedBytesPerSecond: 10485760.0,
-        estimatedTimeRemaining: const Duration(seconds: 5),
+        estimatedTimeRemaining: Duration(seconds: 5),
         status: TransferStatus.transferring,
       );
 

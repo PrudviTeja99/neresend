@@ -99,7 +99,7 @@ class _IncomingTransferModalState extends State<IncomingTransferModal> {
                             style: TextStyle(
                                 color: AppColors.textMuted, fontSize: 13)),
                         Text(
-                          '${widget.prompt.totalFiles} (${sizeStr})',
+                          '${widget.prompt.totalFiles} ($sizeStr)',
                           style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary),

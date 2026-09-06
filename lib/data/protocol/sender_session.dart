@@ -182,8 +182,9 @@ class SenderSession {
       final missingRanges =
           ChunkRange.computeMissingRanges(verifiedRanges, item.totalChunks);
 
-      if (missingRanges.isEmpty)
+      if (missingRanges.isEmpty) {
         continue; // Entire file already verified on receiver
+      }
 
       final raf = await file.open(mode: FileMode.read);
       try {

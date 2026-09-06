@@ -117,14 +117,17 @@ class StorageService implements StorageRepository {
       if (dir != null && await dir.exists()) return dir;
 
       final docs = await getApplicationDocumentsDirectory();
-      final dropflowDir = Directory(p.join(docs.path, 'DropFlow'));
-      if (!await dropflowDir.exists())
-        await dropflowDir.create(recursive: true);
-      return dropflowDir;
+      final neresendDir = Directory(p.join(docs.path, 'NeReSend'));
+      if (!await neresendDir.exists()) {
+        await neresendDir.create(recursive: true);
+      }
+      return neresendDir;
     } catch (_) {
       final fallback =
-          Directory(p.join(Directory.systemTemp.path, 'DropFlow_Downloads'));
-      if (!await fallback.exists()) await fallback.create(recursive: true);
+          Directory(p.join(Directory.systemTemp.path, 'NeReSend_Downloads'));
+      if (!await fallback.exists()) {
+        await fallback.create(recursive: true);
+      }
       return fallback;
     }
   }

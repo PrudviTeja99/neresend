@@ -65,17 +65,15 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
 
           multiPartAccumulator.putIfAbsent(transferId, () => []).addAll(filesList);
 
-          if (partialManifestHeader == null) {
-            partialManifestHeader = TransferManifest(
-              transferId: transferId,
-              senderAlias: json['senderAlias'] as String,
-              senderFingerprint: json['senderFingerprint'] as String,
-              files: const [],
-              totalBytes: json['totalBytes'] as int,
-              totalFiles: json['totalFiles'] as int,
-              createdAt: DateTime.parse(json['createdAt'] as String),
-            );
-          }
+          partialManifestHeader ??= TransferManifest(
+            transferId: transferId,
+            senderAlias: json['senderAlias'] as String,
+            senderFingerprint: json['senderFingerprint'] as String,
+            files: const [],
+            totalBytes: json['totalBytes'] as int,
+            totalFiles: json['totalFiles'] as int,
+            createdAt: DateTime.parse(json['createdAt'] as String),
+          );
         } else if (frame.type == ProtocolConstants.frameTypeManifestEnd) {
           final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
           final transferId = json['transferId'] as String;

@@ -23,7 +23,7 @@ void main() {
     });
 
     test('FrameReader parses single intact frame', () async {
-      final frameReader = const FrameReader();
+      const frameReader = FrameReader();
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('FrameReader handles highly fragmented byte streams (1 byte per packet)', () async {
-      final frameReader = const FrameReader();
+      const frameReader = FrameReader();
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
@@ -63,7 +63,7 @@ void main() {
     });
 
     test('FrameReader handles multiple concatenated frames in one buffer', () async {
-      final frameReader = const FrameReader();
+      const frameReader = FrameReader();
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
@@ -94,7 +94,7 @@ void main() {
 
     test('FrameReader rejects oversized frame exceeding maxPayloadSize', () async {
       const smallMax = 100;
-      final frameReader = const FrameReader(maxPayloadSize: smallMax);
+      const frameReader = FrameReader(maxPayloadSize: smallMax);
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 

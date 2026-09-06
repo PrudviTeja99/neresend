@@ -74,7 +74,7 @@ class TransferOrchestrator {
 
   bool _initialized = false;
   bool _isListening = false;
-  int _tlsPort = 53318;
+  final int _tlsPort;
 
   TransferOrchestrator({
     required this.identityService,
@@ -82,8 +82,8 @@ class TransferOrchestrator {
     required this.storageService,
     PowerManagementService? powerService,
     int tlsPort = 53318,
-  })  : powerService = powerService ?? PowerManagementService(),
-        _tlsPort = tlsPort {
+  })  : _tlsPort = tlsPort,
+        powerService = powerService ?? PowerManagementService() {
     lanDiscovery =
         LanDiscoveryDriver(localIdentity: localIdentity, tcpPort: _tlsPort);
     bleDiscovery =
