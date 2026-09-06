@@ -32,8 +32,10 @@ void main() {
     );
 
     setUp(() async {
-      tempSenderDir = await Directory.systemTemp.createTemp('webrtc_sender_test_');
-      tempReceiverDir = await Directory.systemTemp.createTemp('webrtc_receiver_test_');
+      tempSenderDir =
+          await Directory.systemTemp.createTemp('webrtc_sender_test_');
+      tempReceiverDir =
+          await Directory.systemTemp.createTemp('webrtc_receiver_test_');
     });
 
     tearDown(() async {
@@ -45,9 +47,12 @@ void main() {
       }
     });
 
-    test('Full WebRTC Dual-Channel transfer with SAS emojis and 64 KB sub-packet reassembly', () async {
+    test(
+        'Full WebRTC Dual-Channel transfer with SAS emojis and 64 KB sub-packet reassembly',
+        () async {
       // 1. Setup paired mock DataChannels for 'control' (Stream 0) and 'data' (Stream 1)
-      final controlPair = MockRtcDataChannel.createPair(label: 'control', id: 0);
+      final controlPair =
+          MockRtcDataChannel.createPair(label: 'control', id: 0);
       final dataPair = MockRtcDataChannel.createPair(label: 'data', id: 1);
 
       const sessionPin = '824 195';
@@ -87,14 +92,16 @@ void main() {
 
       // 3. Create synthetic test file (800 KB, spanning multiple 64 KB sub-packets)
       final testFile = File('${tempSenderDir.path}/dataset_archive.tar.gz');
-      final testBytes = Uint8List.fromList(List.generate(800000, (i) => (i * 13) % 256));
+      final testBytes =
+          Uint8List.fromList(List.generate(800000, (i) => (i * 13) % 256));
       await testFile.writeAsBytes(testBytes);
       final expectedSha256 = sha256.convert(testBytes).toString();
 
       // 4. Handle receiver incoming request and accept
       final requestAccepted = Completer<void>();
       receiverEngine.onIncomingRequest.listen((request) async {
-        await receiverEngine.acceptTransfer(request.transferId, tempReceiverDir.path);
+        await receiverEngine.acceptTransfer(
+            request.transferId, tempReceiverDir.path);
         requestAccepted.complete();
       });
 
@@ -108,17 +115,20 @@ void main() {
       });
 
       // 5. Start sender transfer session
-      final sendFuture = senderEngine.startSenderSession(senderTransport, [testFile]);
+      final sendFuture =
+          senderEngine.startSenderSession(senderTransport, [testFile]);
 
       await requestAccepted.future;
       await Future.wait([sendFuture, senderCompleted.future]);
 
       // 6. Verify received file on receiver disk is identical
-      final receivedFile = File('${tempReceiverDir.path}/dataset_archive.tar.gz');
+      final receivedFile =
+          File('${tempReceiverDir.path}/dataset_archive.tar.gz');
       expect(await receivedFile.exists(), isTrue);
       expect(await receivedFile.length(), equals(800000));
 
-      final actualSha256 = sha256.convert(await receivedFile.readAsBytes()).toString();
+      final actualSha256 =
+          sha256.convert(await receivedFile.readAsBytes()).toString();
       expect(actualSha256, equals(expectedSha256));
 
       // Cleanup

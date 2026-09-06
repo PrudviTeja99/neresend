@@ -39,7 +39,8 @@ class MockRtcDataChannel implements RTCDataChannel {
     required this.id,
   });
 
-  static ({MockRtcDataChannel channelA, MockRtcDataChannel channelB}) createPair({
+  static ({MockRtcDataChannel channelA, MockRtcDataChannel channelB})
+      createPair({
     required String label,
     required int id,
   }) {
@@ -60,13 +61,15 @@ class MockRtcDataChannel implements RTCDataChannel {
   Future<int> getBufferedAmount() async => _bufferedAmount;
 
   @override
-  Stream<RTCDataChannelMessage> get messageStream => _messageStreamController.stream;
+  Stream<RTCDataChannelMessage> get messageStream =>
+      _messageStreamController.stream;
 
   @override
   set messageStream(Stream<RTCDataChannelMessage> stream) {}
 
   @override
-  Stream<RTCDataChannelState> get stateChangeStream => _stateChangeStreamController.stream;
+  Stream<RTCDataChannelState> get stateChangeStream =>
+      _stateChangeStreamController.stream;
 
   @override
   set stateChangeStream(Stream<RTCDataChannelState> stream) {}

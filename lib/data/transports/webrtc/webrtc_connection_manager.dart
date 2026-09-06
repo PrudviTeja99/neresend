@@ -24,12 +24,13 @@ class WebRtcConnectionManager {
   });
 
   /// Host creates offer and initializes 'control' & 'data' RTCDataChannels
-  Future<({
-    RTCPeerConnection peerConnection,
-    String sdpOffer,
-    RTCDataChannel controlChannel,
-    RTCDataChannel dataChannel,
-  })> createHostOffer() async {
+  Future<
+      ({
+        RTCPeerConnection peerConnection,
+        String sdpOffer,
+        RTCDataChannel controlChannel,
+        RTCDataChannel dataChannel,
+      })> createHostOffer() async {
     final pc = await createPeerConnection(configuration);
 
     final controlInit = RTCDataChannelInit()..ordered = true;
@@ -37,7 +38,8 @@ class WebRtcConnectionManager {
 
     final dataInit = RTCDataChannelInit()..ordered = true;
     final dataChannel = await pc.createDataChannel('data', dataInit);
-    dataChannel.bufferedAmountLowThreshold = WebRtcBackpressureStreamer.maxBufferedBytes;
+    dataChannel.bufferedAmountLowThreshold =
+        WebRtcBackpressureStreamer.maxBufferedBytes;
 
     final offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -86,15 +88,16 @@ class WebRtcConnectionManager {
   }
 
   /// Client accepts host offer, gathers ICE candidates, and produces SDP answer
-  Future<({
-    RTCPeerConnection peerConnection,
-    String sdpAnswer,
-    Future<WebRtcTransport> Function({
-      required String localFingerprint,
-      required String remoteFingerprint,
-      required String sessionPin,
-    }) finalizeTransport,
-  })> acceptHostOffer({
+  Future<
+      ({
+        RTCPeerConnection peerConnection,
+        String sdpAnswer,
+        Future<WebRtcTransport> Function({
+          required String localFingerprint,
+          required String remoteFingerprint,
+          required String sessionPin,
+        }) finalizeTransport,
+      })> acceptHostOffer({
     required String sdpOffer,
   }) async {
     final pc = await createPeerConnection(configuration);
@@ -106,7 +109,8 @@ class WebRtcConnectionManager {
       if (channel.label == 'control' && !controlCompleter.isCompleted) {
         controlCompleter.complete(channel);
       } else if (channel.label == 'data' && !dataCompleter.isCompleted) {
-        channel.bufferedAmountLowThreshold = WebRtcBackpressureStreamer.maxBufferedBytes;
+        channel.bufferedAmountLowThreshold =
+            WebRtcBackpressureStreamer.maxBufferedBytes;
         dataCompleter.complete(channel);
       }
     };
@@ -129,11 +133,13 @@ class WebRtcConnectionManager {
     }) async {
       final controlChannel = await controlCompleter.future.timeout(
         const Duration(seconds: 15),
-        onTimeout: () => throw const NetworkException('Timeout waiting for control channel'),
+        onTimeout: () =>
+            throw const NetworkException('Timeout waiting for control channel'),
       );
       final dataChannel = await dataCompleter.future.timeout(
         const Duration(seconds: 15),
-        onTimeout: () => throw const NetworkException('Timeout waiting for data channel'),
+        onTimeout: () =>
+            throw const NetworkException('Timeout waiting for data channel'),
       );
 
       await _waitForDataChannelsOpen(controlChannel, dataChannel);
@@ -160,19 +166,22 @@ class WebRtcConnectionManager {
   }
 
   Future<void> _waitForIceGatheringComplete(RTCPeerConnection pc) async {
-    if (pc.iceGatheringState == RTCIceGatheringState.RTCIceGatheringStateComplete) {
+    if (pc.iceGatheringState ==
+        RTCIceGatheringState.RTCIceGatheringStateComplete) {
       return;
     }
 
     final completer = Completer<void>();
     pc.onIceGatheringState = (state) {
-      if (state == RTCIceGatheringState.RTCIceGatheringStateComplete && !completer.isCompleted) {
+      if (state == RTCIceGatheringState.RTCIceGatheringStateComplete &&
+          !completer.isCompleted) {
         completer.complete();
       }
     };
 
     // Timeout after 3 seconds so slow candidate gathering doesn't block forever
-    await completer.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+    await completer.future
+        .timeout(const Duration(seconds: 3), onTimeout: () {});
   }
 
   Future<void> _waitForDataChannelsOpen(
@@ -183,7 +192,8 @@ class WebRtcConnectionManager {
       if (ch.state == RTCDataChannelState.RTCDataChannelOpen) return;
       final completer = Completer<void>();
       ch.onDataChannelState = (state) {
-        if (state == RTCDataChannelState.RTCDataChannelOpen && !completer.isCompleted) {
+        if (state == RTCDataChannelState.RTCDataChannelOpen &&
+            !completer.isCompleted) {
           completer.complete();
         }
       };

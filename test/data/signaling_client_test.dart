@@ -77,11 +77,13 @@ void main() {
           pin: '999 999',
           clientIdentity: clientIdentity,
         ),
-        throwsA(isA<NetworkException>().having((e) => e.code, 'code', 'PIN_EXPIRED')),
+        throwsA(isA<NetworkException>()
+            .having((e) => e.code, 'code', 'PIN_EXPIRED')),
       );
     });
 
-    test('3-Strike rate limiting destroys session on 3rd failed attempt', () async {
+    test('3-Strike rate limiting destroys session on 3rd failed attempt',
+        () async {
       final pin = await signalingClient.createSession(
         hostIdentity: hostIdentity,
         sdpOffer: 'v=0\r\no=host offer',
@@ -99,7 +101,8 @@ void main() {
           pin: pin,
           clientIdentity: clientIdentity,
         ),
-        throwsA(isA<NetworkException>().having((e) => e.code, 'code', 'PIN_EXPIRED')),
+        throwsA(isA<NetworkException>()
+            .having((e) => e.code, 'code', 'PIN_EXPIRED')),
       );
     });
   });

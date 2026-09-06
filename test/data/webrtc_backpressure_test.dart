@@ -4,7 +4,8 @@ import 'package:dropflow/data/transports/webrtc/webrtc_backpressure_streamer.dar
 
 void main() {
   group('WebRtcBackpressureStreamer & Reassembler Tests', () {
-    test('Slices 150 KB chunk into 64 KB wire packets with 16B sub-headers', () {
+    test('Slices 150 KB chunk into 64 KB wire packets with 16B sub-headers',
+        () {
       final syntheticChunk = Uint8List(150 * 1024);
       for (int i = 0; i < syntheticChunk.length; i++) {
         syntheticChunk[i] = i % 256;
@@ -56,7 +57,9 @@ void main() {
       expect(result.chunkData, equals(original));
     });
 
-    test('WebRtcChunkReassembler reconstructs out-of-order sub-packets correctly', () {
+    test(
+        'WebRtcChunkReassembler reconstructs out-of-order sub-packets correctly',
+        () {
       final original = Uint8List(80 * 1024);
       for (int i = 0; i < original.length; i++) {
         original[i] = (i * 13) % 256;

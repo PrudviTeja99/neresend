@@ -48,7 +48,8 @@ class WebRtcTransport implements DropFlowTransport {
               ProtocolConstants.frameHeaderSize,
               ProtocolConstants.frameHeaderSize + length,
             );
-            _incomingFramesController.add(DropFlowFrame(type: type, payload: payload));
+            _incomingFramesController
+                .add(DropFlowFrame(type: type, payload: payload));
           }
         } catch (e) {
           _incomingFramesController.addError(e);
@@ -100,15 +101,18 @@ class WebRtcTransport implements DropFlowTransport {
 
     if (frame.type == ProtocolConstants.frameTypeFileDataChunk) {
       final parsed = FrameWriter.parseFileDataChunk(frame.payload);
-      await sendDataChunk(parsed.fileIndex, parsed.chunkIndex, parsed.chunkData);
+      await sendDataChunk(
+          parsed.fileIndex, parsed.chunkIndex, parsed.chunkData);
     } else {
       // Send over priority control channel (SCTP Stream 0)
-      controlChannel.send(RTCDataChannelMessage.fromBinary(frame.toWireBytes()));
+      controlChannel
+          .send(RTCDataChannelMessage.fromBinary(frame.toWireBytes()));
     }
   }
 
   @override
-  Future<void> sendDataChunk(int fileIdx, int chunkIdx, Uint8List chunkBytes) async {
+  Future<void> sendDataChunk(
+      int fileIdx, int chunkIdx, Uint8List chunkBytes) async {
     if (_closed) throw StateError('WebRtcTransport is closed');
 
     final packets = WebRtcBackpressureStreamer.sliceChunk(

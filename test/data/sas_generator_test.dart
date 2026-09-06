@@ -7,7 +7,8 @@ void main() {
     const remoteFp = '11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00';
     const pin = '749312';
 
-    test('Generates identical 3-emoji string regardless of peer perspective', () {
+    test('Generates identical 3-emoji string regardless of peer perspective',
+        () {
       final hostEmojis = SasGenerator.formatEmojis(
         localFingerprint: localFp,
         remoteFingerprint: remoteFp,
