@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/transports/webrtc/webrtc_backpressure_streamer.dart';
+import 'package:neresend/data/transports/webrtc/webrtc_backpressure_streamer.dart';
 
 void main() {
   group('WebRtcBackpressureStreamer & Reassembler Tests', () {

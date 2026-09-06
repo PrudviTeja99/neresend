@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dropflow/presentation/screens/main_scaffold_screen.dart';
-import 'package:dropflow/presentation/state/identity_provider.dart';
-import 'package:dropflow/presentation/state/readiness_state_provider.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
+import 'package:neresend/presentation/screens/main_scaffold_screen.dart';
+import 'package:neresend/presentation/state/identity_provider.dart';
+import 'package:neresend/presentation/state/readiness_state_provider.dart';
+import 'package:neresend/domain/models/device_identity.dart';
 
 void main() {
   testWidgets(

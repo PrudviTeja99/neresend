@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/core/constants/protocol_constants.dart';
-import 'package:dropflow/domain/integrity/dynamic_chunk_sizer.dart';
+import 'package:neresend/core/constants/protocol_constants.dart';
+import 'package:neresend/domain/integrity/dynamic_chunk_sizer.dart';
 
 void main() {
   group('DynamicChunkSizer Tests', () {

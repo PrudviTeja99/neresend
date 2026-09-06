@@ -36,7 +36,7 @@ class LinuxNmAdapter implements DirectLinkAdapter {
         List.generate(12, (_) => chars[rand.nextInt(chars.length)]).join();
 
     final creds = DirectLinkCredentials(
-      ssid: 'DropFlow-Linux-${rand.nextInt(9000) + 1000}',
+      ssid: 'NeReSend-Linux-${rand.nextInt(9000) + 1000}',
       psk: psk,
       hostIp: '10.42.0.1', // NetworkManager default AP IP
       port: AppConstants.tcpTlsPort,

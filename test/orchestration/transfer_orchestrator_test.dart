@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/services/identity_service.dart';
-import 'package:dropflow/data/services/power_management_service.dart';
-import 'package:dropflow/data/services/storage_service.dart';
-import 'package:dropflow/data/services/transfer_orchestrator.dart';
-import 'package:dropflow/domain/contracts/secure_storage_port.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
+import 'package:neresend/data/services/identity_service.dart';
+import 'package:neresend/data/services/power_management_service.dart';
+import 'package:neresend/data/services/storage_service.dart';
+import 'package:neresend/data/services/transfer_orchestrator.dart';
+import 'package:neresend/domain/contracts/secure_storage_port.dart';
+import 'package:neresend/domain/models/device_identity.dart';
 
 class InMemorySecureStorage implements SecureStoragePort {
   final Map<String, String> _storage = {};

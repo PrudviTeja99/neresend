@@ -1,6 +1,6 @@
-# DropFlow: Cross-Platform P2P File Sharing
+# NeReSend: Cross-Platform P2P File Sharing
 
-**DropFlow** is a modern, privacy-first, cross-platform Peer-to-Peer (P2P) file-sharing application for **Android, Linux, and Windows** built with **Flutter**.
+**NeReSend** is a modern, privacy-first, cross-platform Peer-to-Peer (P2P) file-sharing application for **Android, Linux, and Windows** built with **Flutter**.
 
 It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptographic Identity (Ed25519) with Authenticated Ephemeral TLS 1.3 Sessions**, a unified **Persistent Framed Socket Protocol** with **Invariant-Driven Dynamic Chunk Sizing and Sparse Range Set Resumption**, and a high-performance **RFC 8831 Dual-Channel WebRTC Pipeline** for remote internet sharing.
 
@@ -11,7 +11,7 @@ It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptog
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 1. Same-LAN Mode (Local Network)                                            │
-│    • Standard RFC 6762 mDNS & DropFlow UDP Multicast discovery.             │
+│    • Standard RFC 6762 mDNS & NeReSend UDP Multicast discovery.             │
 │    • Single persistent TLS 1.3 socket signed by Ed25519 Identity Key.       │
 │    • Invariant-driven dynamic chunk sizing (1–8 MB) & sparse resumption.    │
 │    • Full-duplex real-time control (instant pause / resume / cancel).       │
@@ -19,7 +19,7 @@ It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptog
 │ 2. Router-Free Direct Mode (AirDrop / Quick Share Model)                    │
 │    • BLE discovery & handshake with Out-of-Band Key Exchange.               │
 │    • Automatically negotiates an ad-hoc Wi-Fi Direct or Local Hotspot link. │
-│    • Uses the EXACT SAME authenticated DropFlow binary stream engine.       │
+│    • Uses the EXACT SAME authenticated NeReSend binary stream engine.       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 3. Global Internet P2P Mode (Remote Cross-Network)                          │
 │    • Powered by RFC 8831 Dual-Channel WebRTC (SCTP over DTLS over UDP).    │
@@ -55,7 +55,7 @@ Comprehensive design and execution documents are located in the [`docs/`](./docs
    * **RFC 8831 Dual-Channel WebRTC DataChannel Pipeline & Backpressure Specification**.
    * Invariant-Driven Dynamic Chunk Sizing & Sparse Resumption (`PartFileManager`).
    * Cryptographic Identity & Security Architecture (Long-Lived Ed25519 + Signed Ephemeral TLS).
-   * DropFlow Binary Frame Protocol Specification (Frame types, Reader/Writer).
+   * NeReSend Binary Frame Protocol Specification (Frame types, Reader/Writer).
    * Strict mental model separation: Nearby (Local only) vs. Remote (Internet only).
 
 2. **[UX/UI Design Specification](./docs/UX_DESIGN.md):**

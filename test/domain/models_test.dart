@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/domain/models/transfer_mode.dart';
-import 'package:dropflow/domain/models/discovered_peer.dart';
-import 'package:dropflow/domain/models/chunk_range.dart';
-import 'package:dropflow/domain/models/transfer_item.dart';
-import 'package:dropflow/domain/models/transfer_manifest.dart';
-import 'package:dropflow/domain/models/transfer_progress.dart';
+import 'package:neresend/domain/models/transfer_mode.dart';
+import 'package:neresend/domain/models/discovered_peer.dart';
+import 'package:neresend/domain/models/chunk_range.dart';
+import 'package:neresend/domain/models/transfer_item.dart';
+import 'package:neresend/domain/models/transfer_manifest.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
 
 void main() {
   group('Domain Models Tests', () {

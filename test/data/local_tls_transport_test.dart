@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/core/errors/exceptions.dart';
-import 'package:dropflow/core/protocol/dropflow_frame.dart';
-import 'package:dropflow/data/services/identity_service.dart';
-import 'package:dropflow/data/transports/local_tls/local_tls_client.dart';
-import 'package:dropflow/data/transports/local_tls/local_tls_server.dart';
-import 'package:dropflow/domain/contracts/dropflow_transport.dart';
-import 'package:dropflow/domain/contracts/secure_storage_port.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
+import 'package:neresend/core/errors/exceptions.dart';
+import 'package:neresend/core/protocol/neresend_frame.dart';
+import 'package:neresend/data/services/identity_service.dart';
+import 'package:neresend/data/transports/local_tls/local_tls_client.dart';
+import 'package:neresend/data/transports/local_tls/local_tls_server.dart';
+import 'package:neresend/domain/contracts/neresend_transport.dart';
+import 'package:neresend/domain/contracts/secure_storage_port.dart';
+import 'package:neresend/domain/models/device_identity.dart';
 
 class InMemorySecureStorage implements SecureStoragePort {
   final Map<String, String> _storage = {};
@@ -57,7 +57,7 @@ void main() {
         localIdentity: clientIdentity,
       );
 
-      final serverTransportCompleter = Completer<DropFlowTransport>();
+      final serverTransportCompleter = Completer<NeReSendTransport>();
       server.onIncomingTransport.listen((t) {
         serverTransportCompleter.complete(t);
       });
@@ -75,12 +75,12 @@ void main() {
       expect(serverTransport.isConnected, isTrue);
 
       // Send frame from client to server
-      final testFrame = DropFlowFrame(
+      final testFrame = NeReSendFrame(
         type: 0x01,
         payload: Uint8List.fromList([1, 2, 3, 4, 5]),
       );
 
-      final serverReceivedCompleter = Completer<DropFlowFrame>();
+      final serverReceivedCompleter = Completer<NeReSendFrame>();
       serverTransport.incomingFrames.listen(serverReceivedCompleter.complete);
 
       await clientTransport.sendFrame(testFrame);

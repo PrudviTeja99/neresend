@@ -7,10 +7,10 @@ import '../models/chunk_range.dart';
 import '../models/transfer_item.dart';
 import 'chunk_hasher.dart';
 
-/// Manages sparse .dropflow.part and .dropflow.meta sidecar files on disk with RandomAccessFile writes
+/// Manages sparse .neresend.part and .neresend.meta sidecar files on disk with RandomAccessFile writes
 class PartFileManager {
-  static const String partExtension = '.dropflow.part';
-  static const String metaExtension = '.dropflow.meta';
+  static const String partExtension = '.neresend.part';
+  static const String metaExtension = '.neresend.meta';
 
   /// Strips path traversal tokens, null bytes, and OS-reserved characters
   static String sanitizeFilename(String filename) {
@@ -36,7 +36,7 @@ class PartFileManager {
     return p.join(downloadDir, sanitizedFilename);
   }
 
-  /// Loads already verified chunk ranges from existing .dropflow.meta sidecar file if hash matches
+  /// Loads already verified chunk ranges from existing .neresend.meta sidecar file if hash matches
   static Future<List<ChunkRange>> loadVerifiedRanges({
     required String downloadDir,
     required TransferItem item,
@@ -70,7 +70,7 @@ class PartFileManager {
     }
   }
 
-  /// Initialize or prepare a sparse .dropflow.part file on disk
+  /// Initialize or prepare a sparse .neresend.part file on disk
   static Future<void> initializePartFile({
     required String downloadDir,
     required TransferItem item,
@@ -198,7 +198,7 @@ class PartFileManager {
     return finalFile;
   }
 
-  /// Deletes .dropflow.part and .dropflow.meta sidecars
+  /// Deletes .neresend.part and .neresend.meta sidecars
   static Future<void> deletePartials(String downloadDir, String sanitizedFilename) async {
     final partFile = File(getPartPath(downloadDir, sanitizedFilename));
     if (await partFile.exists()) {

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/core/errors/exceptions.dart';
-import 'package:dropflow/data/transports/webrtc/signaling_client.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
+import 'package:neresend/core/errors/exceptions.dart';
+import 'package:neresend/data/transports/webrtc/signaling_client.dart';
+import 'package:neresend/domain/models/device_identity.dart';
 
 void main() {
   late SignalingClient signalingClient;

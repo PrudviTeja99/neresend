@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/domain/models/transfer_progress.dart';
-import 'package:dropflow/presentation/state/active_transfer_provider.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
+import 'package:neresend/presentation/state/active_transfer_provider.dart';
 
 void main() {
   group('ActiveTransferProvider & Notifier Tests', () {

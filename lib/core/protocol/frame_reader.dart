@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:typed_data';
 import '../constants/protocol_constants.dart';
 import '../errors/exceptions.dart';
-import 'dropflow_frame.dart';
+import 'neresend_frame.dart';
 
-/// StreamTransformer that decodes a continuous raw byte stream into DropFlowFrame instances.
+/// StreamTransformer that decodes a continuous raw byte stream into NeReSendFrame instances.
 ///
 /// Handles TCP/WebRTC packet fragmentation, multi-frame bursts in a single buffer,
 /// and enforces the ProtocolConstants.maxFramePayloadSize safety invariant.
-class FrameReader implements StreamTransformer<List<int>, DropFlowFrame> {
+class FrameReader implements StreamTransformer<List<int>, NeReSendFrame> {
   final int maxPayloadSize;
 
   const FrameReader({
@@ -16,8 +16,8 @@ class FrameReader implements StreamTransformer<List<int>, DropFlowFrame> {
   });
 
   @override
-  Stream<DropFlowFrame> bind(Stream<List<int>> stream) {
-    return Stream<DropFlowFrame>.eventTransformed(
+  Stream<NeReSendFrame> bind(Stream<List<int>> stream) {
+    return Stream<NeReSendFrame>.eventTransformed(
       stream,
       (sink) => _FrameReaderSink(sink, maxPayloadSize),
     );
@@ -28,7 +28,7 @@ class FrameReader implements StreamTransformer<List<int>, DropFlowFrame> {
 }
 
 class _FrameReaderSink implements EventSink<List<int>> {
-  final EventSink<DropFlowFrame> _outputSink;
+  final EventSink<NeReSendFrame> _outputSink;
   final int _maxPayloadSize;
   final BytesBuilder _buffer = BytesBuilder(copy: false);
 
@@ -79,7 +79,7 @@ class _FrameReaderSink implements EventSink<List<int>> {
         totalFrameSize,
       );
 
-      _outputSink.add(DropFlowFrame(type: frameType, payload: payload));
+      _outputSink.add(NeReSendFrame(type: frameType, payload: payload));
 
       // Retain remainder
       final remainder = Uint8List.sublistView(currentBytes, totalFrameSize);

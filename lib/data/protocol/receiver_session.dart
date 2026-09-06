@@ -1,10 +1,10 @@
 import 'dart:async';
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
-import '../../core/protocol/dropflow_frame.dart';
+import '../../core/protocol/neresend_frame.dart';
 import '../../core/protocol/frame_writer.dart';
 import '../../core/utils/speed_calculator.dart';
-import '../../domain/contracts/dropflow_transport.dart';
+import '../../domain/contracts/neresend_transport.dart';
 import '../../domain/integrity/chunk_hasher.dart';
 import '../../domain/integrity/part_file_manager.dart';
 import '../../domain/models/chunk_range.dart';
@@ -13,13 +13,13 @@ import '../../domain/models/transfer_progress.dart';
 
 /// Active receiver transfer session handling sparse verification, RAM hash checks, and atomic file finalization
 class ReceiverSession {
-  final DropFlowTransport transport;
+  final NeReSendTransport transport;
   final TransferManifest manifest;
   final String destinationDirectory;
   final void Function(TransferProgress progress) onProgressUpdate;
 
   final SpeedCalculator _speedCalculator = SpeedCalculator();
-  StreamSubscription<DropFlowFrame>? _frameSubscription;
+  StreamSubscription<NeReSendFrame>? _frameSubscription;
 
   final Map<int, List<ChunkRange>> _verifiedRangesMap = {};
   int _totalTransferredBytes = 0;
@@ -101,7 +101,7 @@ class ReceiverSession {
     }
   }
 
-  Future<void> _handleIncomingFrame(DropFlowFrame frame) async {
+  Future<void> _handleIncomingFrame(NeReSendFrame frame) async {
     switch (frame.type) {
       case ProtocolConstants.frameTypeFileDataChunk:
         final parsed = FrameWriter.parseFileDataChunk(frame.payload);

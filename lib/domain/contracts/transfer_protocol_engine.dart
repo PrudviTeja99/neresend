@@ -1,13 +1,13 @@
 import 'dart:io';
 import '../models/transfer_manifest.dart';
 import '../models/transfer_progress.dart';
-import 'dropflow_transport.dart';
+import 'neresend_transport.dart';
 
 /// Incoming transfer request requiring receiver confirmation
 class IncomingTransferRequest {
   final String transferId;
   final TransferManifest manifest;
-  final DropFlowTransport transport;
+  final NeReSendTransport transport;
 
   const IncomingTransferRequest({
     required this.transferId,
@@ -25,7 +25,7 @@ abstract class TransferProtocolEngine {
   Stream<IncomingTransferRequest> get onIncomingRequest;
 
   /// Start a sender session over an authenticated transport
-  Future<void> startSenderSession(DropFlowTransport transport, List<File> files);
+  Future<void> startSenderSession(NeReSendTransport transport, List<File> files);
 
   /// Accept an incoming transfer request and begin receiving files into destinationDirectory
   Future<void> acceptTransfer(String transferId, String destinationDirectory);

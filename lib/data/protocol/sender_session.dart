@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
-import '../../core/protocol/dropflow_frame.dart';
+import '../../core/protocol/neresend_frame.dart';
 import '../../core/protocol/frame_writer.dart';
 import '../../core/utils/speed_calculator.dart';
-import '../../domain/contracts/dropflow_transport.dart';
+import '../../domain/contracts/neresend_transport.dart';
 import '../../domain/integrity/dynamic_chunk_sizer.dart';
 import '../../domain/models/chunk_range.dart';
 import '../../domain/models/transfer_manifest.dart';
@@ -14,13 +14,13 @@ import '../../domain/models/transfer_progress.dart';
 
 /// Active sender transfer session orchestrating manifest negotiation, dynamic chunk streaming, and error handling
 class SenderSession {
-  final DropFlowTransport transport;
+  final NeReSendTransport transport;
   final TransferManifest manifest;
   final List<File> files;
   final void Function(TransferProgress progress) onProgressUpdate;
 
   final SpeedCalculator _speedCalculator = SpeedCalculator();
-  StreamSubscription<DropFlowFrame>? _frameSubscription;
+  StreamSubscription<NeReSendFrame>? _frameSubscription;
 
   bool _isPaused = false;
   bool _isCancelled = false;
@@ -107,7 +107,7 @@ class SenderSession {
   }
 
   Future<void> _handleIncomingFrame(
-    DropFlowFrame frame,
+    NeReSendFrame frame,
     Completer<Map<int, List<ChunkRange>>> acceptCompleter,
   ) async {
     switch (frame.type) {

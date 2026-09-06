@@ -3,7 +3,7 @@ import 'dart:io';
 
 import '../../../core/errors/exceptions.dart';
 import '../../services/identity_service.dart';
-import '../../../domain/contracts/dropflow_transport.dart';
+import '../../../domain/contracts/neresend_transport.dart';
 import '../../../domain/contracts/transport_port.dart';
 import '../../../domain/models/device_identity.dart';
 import '../../../domain/models/discovered_peer.dart';
@@ -19,8 +19,8 @@ class LocalTlsServer implements TransportPort {
   final SecurityContext? customSecurityContext;
 
   SecureServerSocket? _serverSocket;
-  final StreamController<DropFlowTransport> _incomingConnections =
-      StreamController<DropFlowTransport>.broadcast();
+  final StreamController<NeReSendTransport> _incomingConnections =
+      StreamController<NeReSendTransport>.broadcast();
 
   LocalTlsServer({
     required this.identityService,
@@ -29,7 +29,7 @@ class LocalTlsServer implements TransportPort {
   });
 
   @override
-  Stream<DropFlowTransport> get onIncomingTransport =>
+  Stream<NeReSendTransport> get onIncomingTransport =>
       _incomingConnections.stream;
 
   bool get isListening => _serverSocket != null;
@@ -86,7 +86,7 @@ class LocalTlsServer implements TransportPort {
   }
 
   @override
-  Future<DropFlowTransport> connect(DiscoveredPeer peer) async {
+  Future<NeReSendTransport> connect(DiscoveredPeer peer) async {
     final client = LocalTlsClient(
       identityService: identityService,
       localIdentity: localIdentity,

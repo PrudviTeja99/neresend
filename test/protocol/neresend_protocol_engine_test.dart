@@ -3,16 +3,16 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dropflow/core/protocol/dropflow_frame.dart';
-import 'package:dropflow/core/protocol/frame_writer.dart';
-import 'package:dropflow/data/protocol/dropflow_protocol_engine.dart';
-import 'package:dropflow/domain/contracts/dropflow_transport.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
-import 'package:dropflow/domain/models/transfer_progress.dart';
+import 'package:neresend/core/protocol/neresend_frame.dart';
+import 'package:neresend/core/protocol/frame_writer.dart';
+import 'package:neresend/data/protocol/neresend_protocol_engine.dart';
+import 'package:neresend/domain/contracts/neresend_transport.dart';
+import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
 
 /// In-memory bidirectional mock transport linking two endpoints directly
-class MockDuplexTransport implements DropFlowTransport {
-  final StreamController<DropFlowFrame> _incoming = StreamController<DropFlowFrame>.broadcast();
+class MockDuplexTransport implements NeReSendTransport {
+  final StreamController<NeReSendFrame> _incoming = StreamController<NeReSendFrame>.broadcast();
   late MockDuplexTransport _peer;
   bool _connected = true;
 
@@ -27,13 +27,13 @@ class MockDuplexTransport implements DropFlowTransport {
   }
 
   @override
-  Stream<DropFlowFrame> get incomingFrames => _incoming.stream;
+  Stream<NeReSendFrame> get incomingFrames => _incoming.stream;
 
   @override
   bool get isConnected => _connected;
 
   @override
-  Future<void> sendFrame(DropFlowFrame frame) async {
+  Future<void> sendFrame(NeReSendFrame frame) async {
     if (!_connected) throw StateError('Transport disconnected');
     _peer._incoming.add(frame);
   }
@@ -57,7 +57,7 @@ class MockDuplexTransport implements DropFlowTransport {
 }
 
 void main() {
-  group('DropFlowProtocolEngine End-to-End Tests', () {
+  group('NeReSendProtocolEngine End-to-End Tests', () {
     late Directory tempSenderDir;
     late Directory tempReceiverDir;
 
@@ -100,8 +100,8 @@ void main() {
       await testFile.writeAsBytes(payloadBytes);
       final expectedSha256 = sha256.convert(payloadBytes).toString();
 
-      final senderEngine = DropFlowProtocolEngine(localIdentity: senderIdentity);
-      final receiverEngine = DropFlowProtocolEngine(localIdentity: receiverIdentity);
+      final senderEngine = NeReSendProtocolEngine(localIdentity: senderIdentity);
+      final receiverEngine = NeReSendProtocolEngine(localIdentity: receiverIdentity);
 
       receiverEngine.listenToTransport(receiverTransport);
 

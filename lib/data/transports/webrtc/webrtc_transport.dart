@@ -3,20 +3,20 @@ import 'dart:typed_data';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../../core/constants/protocol_constants.dart';
-import '../../../core/protocol/dropflow_frame.dart';
+import '../../../core/protocol/neresend_frame.dart';
 import '../../../core/protocol/frame_writer.dart';
-import '../../../domain/contracts/dropflow_transport.dart';
+import '../../../domain/contracts/neresend_transport.dart';
 import 'webrtc_backpressure_streamer.dart';
 
-/// DropFlowTransport implementation over RFC 8831 Dual WebRTC DataChannels ('control' and 'data')
-class WebRtcTransport implements DropFlowTransport {
+/// NeReSendTransport implementation over RFC 8831 Dual WebRTC DataChannels ('control' and 'data')
+class WebRtcTransport implements NeReSendTransport {
   final RTCDataChannel controlChannel;
   final RTCDataChannel dataChannel;
   final RTCPeerConnection? peerConnection;
   final String sasEmojis;
 
-  final StreamController<DropFlowFrame> _incomingFramesController =
-      StreamController<DropFlowFrame>.broadcast();
+  final StreamController<NeReSendFrame> _incomingFramesController =
+      StreamController<NeReSendFrame>.broadcast();
   final WebRtcChunkReassembler _chunkReassembler = WebRtcChunkReassembler();
 
   bool _closed = false;
@@ -49,7 +49,7 @@ class WebRtcTransport implements DropFlowTransport {
               ProtocolConstants.frameHeaderSize + length,
             );
             _incomingFramesController
-                .add(DropFlowFrame(type: type, payload: payload));
+                .add(NeReSendFrame(type: type, payload: payload));
           }
         } catch (e) {
           _incomingFramesController.addError(e);
@@ -90,13 +90,13 @@ class WebRtcTransport implements DropFlowTransport {
   }
 
   @override
-  Stream<DropFlowFrame> get incomingFrames => _incomingFramesController.stream;
+  Stream<NeReSendFrame> get incomingFrames => _incomingFramesController.stream;
 
   @override
   bool get isConnected => !_closed;
 
   @override
-  Future<void> sendFrame(DropFlowFrame frame) async {
+  Future<void> sendFrame(NeReSendFrame frame) async {
     if (_closed) throw StateError('WebRtcTransport is closed');
 
     if (frame.type == ProtocolConstants.frameTypeFileDataChunk) {

@@ -3,7 +3,7 @@ import 'dart:io';
 
 import '../../../core/errors/exceptions.dart';
 import '../../services/identity_service.dart';
-import '../../../domain/contracts/dropflow_transport.dart';
+import '../../../domain/contracts/neresend_transport.dart';
 import '../../../domain/models/device_identity.dart';
 import 'auth_handshake_handler.dart';
 import 'local_tls_transport.dart';
@@ -20,7 +20,7 @@ class LocalTlsClient {
   });
 
   /// Connect to a peer server over TLS 1.3 and perform mutual Ed25519 authentication
-  Future<DropFlowTransport> connectToPeer({
+  Future<NeReSendTransport> connectToPeer({
     required String host,
     required int port,
     String? expectedFingerprint,
@@ -72,7 +72,7 @@ class LocalTlsClient {
         rawSocket.destroy();
       }
 
-      if (e is DropFlowException) rethrow;
+      if (e is NeReSendException) rethrow;
       throw NetworkException('Failed to connect to peer at $host:$port: $e', cause: e);
     }
   }

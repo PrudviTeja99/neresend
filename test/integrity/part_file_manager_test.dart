@@ -2,16 +2,16 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dropflow/domain/integrity/part_file_manager.dart';
-import 'package:dropflow/domain/models/chunk_range.dart';
-import 'package:dropflow/domain/models/transfer_item.dart';
+import 'package:neresend/domain/integrity/part_file_manager.dart';
+import 'package:neresend/domain/models/chunk_range.dart';
+import 'package:neresend/domain/models/transfer_item.dart';
 
 void main() {
   group('PartFileManager & Sidecar Tests', () {
     late Directory tempDir;
 
     setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('dropflow_part_test_');
+      tempDir = await Directory.systemTemp.createTemp('neresend_part_test_');
     });
 
     tearDown(() async {

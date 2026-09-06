@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/discovery/remote_discovery_driver.dart';
-import 'package:dropflow/data/transports/webrtc/signaling_client.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
-import 'package:dropflow/domain/models/transfer_mode.dart';
+import 'package:neresend/data/discovery/remote_discovery_driver.dart';
+import 'package:neresend/data/transports/webrtc/signaling_client.dart';
+import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/transfer_mode.dart';
 
 void main() {
   late SignalingClient signalingClient;

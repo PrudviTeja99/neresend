@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/domain/models/chunk_range.dart';
+import 'package:neresend/domain/models/chunk_range.dart';
 
 void main() {
   group('ChunkRange Interval Math & Sparse Gaps Tests', () {

@@ -4,41 +4,41 @@ import '../constants/protocol_constants.dart';
 import '../../domain/models/auth_handshake.dart';
 import '../../domain/models/chunk_range.dart';
 import '../../domain/models/transfer_manifest.dart';
-import 'dropflow_frame.dart';
+import 'neresend_frame.dart';
 
-/// Helper utility for creating and serializing protocol messages into DropFlowFrame instances
+/// Helper utility for creating and serializing protocol messages into NeReSendFrame instances
 class FrameWriter {
   FrameWriter._();
 
   /// Create a generic frame
-  static DropFlowFrame createFrame(int type, Uint8List payload) {
-    return DropFlowFrame(type: type, payload: payload);
+  static NeReSendFrame createFrame(int type, Uint8List payload) {
+    return NeReSendFrame(type: type, payload: payload);
   }
 
   /// Create AUTH_HANDSHAKE frame (0x00)
-  static DropFlowFrame createAuthHandshake(AuthHandshake handshake) {
-    return DropFlowFrame(
+  static NeReSendFrame createAuthHandshake(AuthHandshake handshake) {
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeAuthHandshake,
       payload: handshake.toBytes(),
     );
   }
 
   /// Create MANIFEST_REQUEST frame (0x01)
-  static DropFlowFrame createManifestRequest(TransferManifest manifest) {
+  static NeReSendFrame createManifestRequest(TransferManifest manifest) {
     final jsonStr = jsonEncode(manifest.toJson());
     final payload = Uint8List.fromList(utf8.encode(jsonStr));
-    return DropFlowFrame(
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeManifestRequest,
       payload: payload,
     );
   }
 
   /// Segment a large multi-file manifest into MANIFEST_PART frames (0x04) and MANIFEST_END (0x05)
-  static List<DropFlowFrame> createManifestParts(
+  static List<NeReSendFrame> createManifestParts(
     TransferManifest manifest, {
     int maxPartItems = 50,
   }) {
-    final frames = <DropFlowFrame>[];
+    final frames = <NeReSendFrame>[];
     final allFiles = manifest.files;
     final totalParts = (allFiles.length / maxPartItems).ceil().clamp(1, 65535);
 
@@ -60,7 +60,7 @@ class FrameWriter {
       });
 
       frames.add(
-        DropFlowFrame(
+        NeReSendFrame(
           type: ProtocolConstants.frameTypeManifestPart,
           payload: Uint8List.fromList(utf8.encode(partPayload)),
         ),
@@ -68,7 +68,7 @@ class FrameWriter {
     }
 
     frames.add(
-      DropFlowFrame(
+      NeReSendFrame(
         type: ProtocolConstants.frameTypeManifestEnd,
         payload: Uint8List.fromList(
           utf8.encode(jsonEncode({'transferId': manifest.transferId})),
@@ -80,7 +80,7 @@ class FrameWriter {
   }
 
   /// Create ACCEPT_RESPONSE frame (0x02) with sparse chunk ranges
-  static DropFlowFrame createAcceptResponse({
+  static NeReSendFrame createAcceptResponse({
     required String transferId,
     required Map<int, List<ChunkRange>> acceptedRanges,
   }) {
@@ -94,14 +94,14 @@ class FrameWriter {
       'ranges': rangesMap,
     });
 
-    return DropFlowFrame(
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeAcceptResponse,
       payload: Uint8List.fromList(utf8.encode(payloadStr)),
     );
   }
 
   /// Create DECLINE_RESPONSE frame (0x03)
-  static DropFlowFrame createDeclineResponse({
+  static NeReSendFrame createDeclineResponse({
     required String transferId,
     required String reason,
   }) {
@@ -109,14 +109,14 @@ class FrameWriter {
       'transferId': transferId,
       'reason': reason,
     });
-    return DropFlowFrame(
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeDeclineResponse,
       payload: Uint8List.fromList(utf8.encode(payloadStr)),
     );
   }
 
   /// Create FILE_DATA_CHUNK frame (0x10): [4B fileIdx] [4B chunkIdx] [raw chunk bytes]
-  static DropFlowFrame createFileDataChunk({
+  static NeReSendFrame createFileDataChunk({
     required int fileIndex,
     required int chunkIndex,
     required Uint8List chunkData,
@@ -128,7 +128,7 @@ class FrameWriter {
     byteData.setUint32(4, chunkIndex, Endian.big);
     payload.setRange(8, payload.length, chunkData);
 
-    return DropFlowFrame(
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeFileDataChunk,
       payload: payload,
     );
@@ -154,23 +154,23 @@ class FrameWriter {
   }
 
   /// Create PAUSE_COMMAND frame (0x20)
-  static DropFlowFrame createPauseCommand(String transferId) {
-    return DropFlowFrame(
+  static NeReSendFrame createPauseCommand(String transferId) {
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypePauseCommand,
       payload: Uint8List.fromList(utf8.encode(jsonEncode({'transferId': transferId}))),
     );
   }
 
   /// Create RESUME_COMMAND frame (0x21)
-  static DropFlowFrame createResumeCommand(String transferId) {
-    return DropFlowFrame(
+  static NeReSendFrame createResumeCommand(String transferId) {
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeResumeCommand,
       payload: Uint8List.fromList(utf8.encode(jsonEncode({'transferId': transferId}))),
     );
   }
 
   /// Create RETRY_CHUNK frame (0x22): [4B fileIdx] [4B chunkIdx]
-  static DropFlowFrame createRetryChunk({
+  static NeReSendFrame createRetryChunk({
     required int fileIndex,
     required int chunkIndex,
   }) {
@@ -179,7 +179,7 @@ class FrameWriter {
     byteData.setUint32(0, fileIndex, Endian.big);
     byteData.setUint32(4, chunkIndex, Endian.big);
 
-    return DropFlowFrame(
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeRetryChunk,
       payload: payload,
     );
@@ -198,16 +198,16 @@ class FrameWriter {
   }
 
   /// Create CANCEL_COMMAND frame (0x30)
-  static DropFlowFrame createCancelCommand(String transferId) {
-    return DropFlowFrame(
+  static NeReSendFrame createCancelCommand(String transferId) {
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeCancelCommand,
       payload: Uint8List.fromList(utf8.encode(jsonEncode({'transferId': transferId}))),
     );
   }
 
   /// Create TRANSFER_COMPLETE frame (0xFF)
-  static DropFlowFrame createTransferComplete(String transferId) {
-    return DropFlowFrame(
+  static NeReSendFrame createTransferComplete(String transferId) {
+    return NeReSendFrame(
       type: ProtocolConstants.frameTypeTransferComplete,
       payload: Uint8List.fromList(utf8.encode(jsonEncode({'transferId': transferId}))),
     );

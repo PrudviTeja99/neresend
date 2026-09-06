@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/core/constants/protocol_constants.dart';
-import 'package:dropflow/core/errors/exceptions.dart';
-import 'package:dropflow/core/protocol/dropflow_frame.dart';
-import 'package:dropflow/core/protocol/frame_reader.dart';
-import 'package:dropflow/core/protocol/frame_writer.dart';
+import 'package:neresend/core/constants/protocol_constants.dart';
+import 'package:neresend/core/errors/exceptions.dart';
+import 'package:neresend/core/protocol/neresend_frame.dart';
+import 'package:neresend/core/protocol/frame_reader.dart';
+import 'package:neresend/core/protocol/frame_writer.dart';
 
 void main() {
   group('DropFlow Frame & Codec Tests', () {
-    test('DropFlowFrame correctly encodes 5-byte header into wire bytes', () {
+    test('NeReSendFrame correctly encodes 5-byte header into wire bytes', () {
       final payload = Uint8List.fromList([1, 2, 3, 4, 5]);
-      final frame = DropFlowFrame(type: ProtocolConstants.frameTypeManifestRequest, payload: payload);
+      final frame = NeReSendFrame(type: ProtocolConstants.frameTypeManifestRequest, payload: payload);
       final wireBytes = frame.toWireBytes();
 
       expect(wireBytes.length, equals(5 + 5));
@@ -28,7 +28,7 @@ void main() {
       final stream = source.stream.transform(frameReader);
 
       final payload = Uint8List.fromList([10, 20, 30, 40]);
-      final wireBytes = DropFlowFrame(type: 0x10, payload: payload).toWireBytes();
+      final wireBytes = NeReSendFrame(type: 0x10, payload: payload).toWireBytes();
 
       final framesFuture = stream.first;
       source.add(wireBytes);
@@ -45,9 +45,9 @@ void main() {
       final stream = source.stream.transform(frameReader);
 
       final payload = Uint8List.fromList(List.generate(100, (i) => i % 256));
-      final wireBytes = DropFlowFrame(type: 0x01, payload: payload).toWireBytes();
+      final wireBytes = NeReSendFrame(type: 0x01, payload: payload).toWireBytes();
 
-      final completer = Completer<DropFlowFrame>();
+      final completer = Completer<NeReSendFrame>();
       stream.listen(completer.complete);
 
       // Feed byte-by-byte
@@ -67,9 +67,9 @@ void main() {
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
-      final f1 = DropFlowFrame(type: 0x01, payload: Uint8List.fromList([1, 2]));
-      final f2 = DropFlowFrame(type: 0x02, payload: Uint8List.fromList([3, 4, 5]));
-      final f3 = DropFlowFrame(type: 0x03, payload: Uint8List.fromList([6]));
+      final f1 = NeReSendFrame(type: 0x01, payload: Uint8List.fromList([1, 2]));
+      final f2 = NeReSendFrame(type: 0x02, payload: Uint8List.fromList([3, 4, 5]));
+      final f3 = NeReSendFrame(type: 0x03, payload: Uint8List.fromList([6]));
 
       final concatenated = Uint8List.fromList([
         ...f1.toWireBytes(),
@@ -77,7 +77,7 @@ void main() {
         ...f3.toWireBytes(),
       ]);
 
-      final frames = <DropFlowFrame>[];
+      final frames = <NeReSendFrame>[];
       stream.listen(frames.add);
 
       source.add(concatenated);

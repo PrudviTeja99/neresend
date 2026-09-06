@@ -2,14 +2,14 @@ import 'dart:typed_data';
 import '../constants/protocol_constants.dart';
 
 /// Represents a framed protocol message on the wire
-class DropFlowFrame {
+class NeReSendFrame {
   /// 1-byte frame type
   final int type;
 
   /// Raw frame payload bytes
   final Uint8List payload;
 
-  const DropFlowFrame({
+  const NeReSendFrame({
     required this.type,
     required this.payload,
   });

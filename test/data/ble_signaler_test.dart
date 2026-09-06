@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/discovery/ble_discovery_driver.dart';
-import 'package:dropflow/data/transports/direct_link/ble_signaler.dart';
-import 'package:dropflow/domain/contracts/direct_link_adapter.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
-import 'package:dropflow/domain/models/transfer_mode.dart';
+import 'package:neresend/data/discovery/ble_discovery_driver.dart';
+import 'package:neresend/data/transports/direct_link/ble_signaler.dart';
+import 'package:neresend/domain/contracts/direct_link_adapter.dart';
+import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/transfer_mode.dart';
 
 void main() {
   group('BleSignaler & BleDiscoveryDriver Tests', () {
@@ -33,7 +33,7 @@ void main() {
 
     test('BleSignaler credentials encode and decode round-trip', () {
       const originalCreds = DirectLinkCredentials(
-        ssid: 'DropFlow-9876',
+        ssid: 'NeReSend-9876',
         psk: 'wpa2secretkey',
         hostIp: '192.168.49.1',
         port: 53318,

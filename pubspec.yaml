@@ -1,5 +1,5 @@
-name: dropflow
-description: "DropFlow: A modern, privacy-first, cross-platform P2P file sharing application."
+name: neresend
+description: "NeReSend: A modern, privacy-first, cross-platform P2P file sharing application."
 publish_to: 'none'
 version: 1.0.0+1
 

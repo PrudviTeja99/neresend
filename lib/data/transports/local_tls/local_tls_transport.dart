@@ -2,18 +2,18 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../../../core/protocol/dropflow_frame.dart';
+import '../../../core/protocol/neresend_frame.dart';
 import '../../../core/protocol/frame_reader.dart';
 import '../../../core/protocol/frame_writer.dart';
-import '../../../domain/contracts/dropflow_transport.dart';
+import '../../../domain/contracts/neresend_transport.dart';
 import 'auth_handshake_handler.dart';
 
-/// Concrete DropFlowTransport implementation wrapping an authenticated TLS 1.3 SecureSocket
-class LocalTlsTransport implements DropFlowTransport {
+/// Concrete NeReSendTransport implementation wrapping an authenticated TLS 1.3 SecureSocket
+class LocalTlsTransport implements NeReSendTransport {
   final SecureSocket _socket;
   AuthResult? authResult;
-  final StreamController<DropFlowFrame> _frameController = StreamController<DropFlowFrame>.broadcast();
-  StreamSubscription<DropFlowFrame>? _rawSubscription;
+  final StreamController<NeReSendFrame> _frameController = StreamController<NeReSendFrame>.broadcast();
+  StreamSubscription<NeReSendFrame>? _rawSubscription;
   bool _closed = false;
 
   LocalTlsTransport({
@@ -32,13 +32,13 @@ class LocalTlsTransport implements DropFlowTransport {
   }
 
   @override
-  Stream<DropFlowFrame> get incomingFrames => _frameController.stream;
+  Stream<NeReSendFrame> get incomingFrames => _frameController.stream;
 
   @override
   bool get isConnected => !_closed;
 
   @override
-  Future<void> sendFrame(DropFlowFrame frame) async {
+  Future<void> sendFrame(NeReSendFrame frame) async {
     if (_closed) throw StateError('LocalTlsTransport is closed');
     _socket.add(frame.toWireBytes());
     await _socket.flush();

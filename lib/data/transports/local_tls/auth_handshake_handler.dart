@@ -7,7 +7,7 @@ import '../../../core/constants/protocol_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/protocol/frame_writer.dart';
 import '../../services/identity_service.dart';
-import '../../../domain/contracts/dropflow_transport.dart';
+import '../../../domain/contracts/neresend_transport.dart';
 import '../../../domain/models/auth_handshake.dart';
 import '../../../domain/models/device_identity.dart';
 
@@ -34,9 +34,9 @@ class AuthHandshakeHandler {
     required this.localIdentity,
   });
 
-  /// Perform bidirectional Ed25519 handshake over an open DropFlowTransport
+  /// Perform bidirectional Ed25519 handshake over an open NeReSendTransport
   Future<AuthResult> authenticateTransport({
-    required DropFlowTransport transport,
+    required NeReSendTransport transport,
     required String peerTlsCertFingerprint,
     required String localTlsCertFingerprint,
     String? expectedRemoteFingerprint,

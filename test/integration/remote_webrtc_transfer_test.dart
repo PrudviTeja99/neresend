@@ -3,11 +3,11 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dropflow/data/protocol/dropflow_protocol_engine.dart';
-import 'package:dropflow/data/transports/webrtc/sas_generator.dart';
-import 'package:dropflow/data/transports/webrtc/webrtc_transport.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
-import 'package:dropflow/domain/models/transfer_progress.dart';
+import 'package:neresend/data/protocol/neresend_protocol_engine.dart';
+import 'package:neresend/data/transports/webrtc/sas_generator.dart';
+import 'package:neresend/data/transports/webrtc/webrtc_transport.dart';
+import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
 import '../mocks/mock_rtc_data_channel.dart';
 
 void main() {
@@ -78,12 +78,12 @@ void main() {
       );
 
       // 2. Instantiate Protocol Engines (with isRemote = true for 1-4 MB remote chunks)
-      final senderEngine = DropFlowProtocolEngine(
+      final senderEngine = NeReSendProtocolEngine(
         localIdentity: senderIdentity,
         isRemote: true,
       );
 
-      final receiverEngine = DropFlowProtocolEngine(
+      final receiverEngine = NeReSendProtocolEngine(
         localIdentity: receiverIdentity,
         isRemote: true,
       );

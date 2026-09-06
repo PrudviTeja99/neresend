@@ -1,8 +1,8 @@
-/// Application-wide constants for DropFlow
+/// Application-wide constants for NeReSend
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'DropFlow';
+  static const String appName = 'NeReSend';
   static const String appVersion = '1.0.0';
 
   // Default Network Ports
@@ -13,11 +13,11 @@ class AppConstants {
   // Multicast Group Addresses
   static const String mdnsIpv4Multicast = '224.0.0.251';
   static const String mdnsIpv6Multicast = 'FF02::FB';
-  static const String dropFlowUdpMulticast = '224.0.0.167';
-  static const String dropFlowUdpBroadcast = '255.255.255.255';
+  static const String neReSendUdpMulticast = '224.0.0.167';
+  static const String neReSendUdpBroadcast = '255.255.255.255';
 
   // DNS-SD Service Identifier
-  static const String mdnsServiceType = '_dropflow._tcp.local.';
+  static const String mdnsServiceType = '_neresend._tcp.local.';
 
   // Session & Security
   static const Duration remotePinTtl = Duration(minutes: 10);

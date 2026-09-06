@@ -36,7 +36,7 @@ class AndroidHotspotAdapter implements DirectLinkAdapter {
         List.generate(12, (_) => chars[rand.nextInt(chars.length)]).join();
 
     final creds = DirectLinkCredentials(
-      ssid: 'DropFlow-Android-${rand.nextInt(9000) + 1000}',
+      ssid: 'NeReSend-Android-${rand.nextInt(9000) + 1000}',
       psk: psk,
       hostIp: '192.168.49.1', // Android standard LocalOnlyHotspot gateway
       port: AppConstants.tcpTlsPort,

@@ -36,7 +36,7 @@ class WindowsDirectAdapter implements DirectLinkAdapter {
         List.generate(12, (_) => chars[rand.nextInt(chars.length)]).join();
 
     final creds = DirectLinkCredentials(
-      ssid: 'DropFlow-Windows-${rand.nextInt(9000) + 1000}',
+      ssid: 'NeReSend-Windows-${rand.nextInt(9000) + 1000}',
       psk: psk,
       hostIp: '192.168.137.1', // Windows standard ICS hotspot gateway
       port: AppConstants.tcpTlsPort,

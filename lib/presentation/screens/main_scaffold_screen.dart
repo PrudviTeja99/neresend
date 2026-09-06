@@ -58,7 +58,7 @@ class _MainScaffoldScreenState extends ConsumerState<MainScaffoldScreen> {
                   color: AppColors.primary, size: 20),
             ),
             const SizedBox(width: 10),
-            const Text('DropFlow'),
+            const Text('NeReSend'),
           ],
         ),
         actions: [

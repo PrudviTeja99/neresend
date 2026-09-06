@@ -3,13 +3,13 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dropflow/data/protocol/dropflow_protocol_engine.dart';
-import 'package:dropflow/data/services/identity_service.dart';
-import 'package:dropflow/data/transports/local_tls/local_tls_client.dart';
-import 'package:dropflow/data/transports/local_tls/local_tls_server.dart';
-import 'package:dropflow/domain/contracts/secure_storage_port.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
-import 'package:dropflow/domain/models/transfer_progress.dart';
+import 'package:neresend/data/protocol/neresend_protocol_engine.dart';
+import 'package:neresend/data/services/identity_service.dart';
+import 'package:neresend/data/transports/local_tls/local_tls_client.dart';
+import 'package:neresend/data/transports/local_tls/local_tls_server.dart';
+import 'package:neresend/domain/contracts/secure_storage_port.dart';
+import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
 
 class InMemorySecureStorage implements SecureStoragePort {
   final Map<String, String> _storage = {};
@@ -67,7 +67,7 @@ void main() {
       final serverPort = server.boundPort!;
 
       // 2. Prepare Receiver Protocol Engine
-      final receiverEngine = DropFlowProtocolEngine(localIdentity: receiverIdentity);
+      final receiverEngine = NeReSendProtocolEngine(localIdentity: receiverIdentity);
       server.onIncomingTransport.listen((transport) {
         receiverEngine.listenToTransport(transport);
       });
@@ -90,7 +90,7 @@ void main() {
         expectedFingerprint: receiverIdentity.fingerprint,
       );
 
-      final senderEngine = DropFlowProtocolEngine(localIdentity: senderIdentity);
+      final senderEngine = NeReSendProtocolEngine(localIdentity: senderIdentity);
 
       // 5. Handle receiver incoming request
       final requestReceived = Completer<void>();

@@ -6,9 +6,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
-import '../../core/protocol/dropflow_frame.dart';
+import '../../core/protocol/neresend_frame.dart';
 import '../../core/protocol/frame_writer.dart';
-import '../../domain/contracts/dropflow_transport.dart';
+import '../../domain/contracts/neresend_transport.dart';
 import '../../domain/contracts/transfer_protocol_engine.dart';
 import '../../domain/integrity/chunk_hasher.dart';
 import '../../domain/integrity/dynamic_chunk_sizer.dart';
@@ -20,7 +20,7 @@ import 'receiver_session.dart';
 import 'sender_session.dart';
 
 /// Concrete implementation of TransferProtocolEngine coordinating send and receive sessions
-class DropFlowProtocolEngine implements TransferProtocolEngine {
+class NeReSendProtocolEngine implements TransferProtocolEngine {
   final DeviceIdentity localIdentity;
   final bool isRemote;
 
@@ -33,7 +33,7 @@ class DropFlowProtocolEngine implements TransferProtocolEngine {
   final Map<String, ReceiverSession> _activeReceiverSessions = {};
   final Map<String, ({IncomingTransferRequest request, Completer<bool> responseCompleter})> _pendingRequests = {};
 
-  DropFlowProtocolEngine({
+  NeReSendProtocolEngine({
     required this.localIdentity,
     this.isRemote = false,
   });
@@ -45,8 +45,8 @@ class DropFlowProtocolEngine implements TransferProtocolEngine {
   Stream<IncomingTransferRequest> get onIncomingRequest => _incomingRequestController.stream;
 
   /// Register an active transport to listen for incoming transfer requests
-  void listenToTransport(DropFlowTransport transport) {
-    StreamSubscription<DropFlowFrame>? sub;
+  void listenToTransport(NeReSendTransport transport) {
+    StreamSubscription<NeReSendFrame>? sub;
     final multiPartAccumulator = <String, List<TransferItem>>{};
     TransferManifest? partialManifestHeader;
 
@@ -103,7 +103,7 @@ class DropFlowProtocolEngine implements TransferProtocolEngine {
 
   Future<void> _handleManifestReceived(
     TransferManifest manifest,
-    DropFlowTransport transport,
+    NeReSendTransport transport,
   ) async {
     final responseCompleter = Completer<bool>();
     final request = IncomingTransferRequest(
@@ -121,7 +121,7 @@ class DropFlowProtocolEngine implements TransferProtocolEngine {
   }
 
   @override
-  Future<void> startSenderSession(DropFlowTransport transport, List<File> files) async {
+  Future<void> startSenderSession(NeReSendTransport transport, List<File> files) async {
     if (files.isEmpty) {
       throw const StorageException('Cannot start transfer with empty file list');
     }

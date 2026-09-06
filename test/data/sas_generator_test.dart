@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/transports/webrtc/sas_generator.dart';
+import 'package:neresend/data/transports/webrtc/sas_generator.dart';
 
 void main() {
   group('SasGenerator Tests', () {

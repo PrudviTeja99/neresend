@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/domain/models/discovered_peer.dart';
-import 'package:dropflow/domain/models/transfer_mode.dart';
-import 'package:dropflow/presentation/state/peer_list_provider.dart';
+import 'package:neresend/domain/models/discovered_peer.dart';
+import 'package:neresend/domain/models/transfer_mode.dart';
+import 'package:neresend/presentation/state/peer_list_provider.dart';
 
 void main() {
   group('PeerListProvider Tests', () {

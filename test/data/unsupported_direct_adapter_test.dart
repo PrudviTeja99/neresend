@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/core/errors/exceptions.dart';
-import 'package:dropflow/data/transports/direct_link/unsupported_direct_adapter.dart';
-import 'package:dropflow/domain/contracts/direct_link_adapter.dart';
+import 'package:neresend/core/errors/exceptions.dart';
+import 'package:neresend/data/transports/direct_link/unsupported_direct_adapter.dart';
+import 'package:neresend/domain/contracts/direct_link_adapter.dart';
 
 void main() {
   group('UnsupportedDirectAdapter Graceful Fallback Tests', () {
@@ -27,7 +27,7 @@ void main() {
 
     test('connectToHost throws DirectLinkUnavailableException', () async {
       const creds = DirectLinkCredentials(
-        ssid: 'DropFlow-1234',
+        ssid: 'NeReSend-1234',
         psk: 'secret123',
         hostIp: '192.168.49.1',
         port: 53318,

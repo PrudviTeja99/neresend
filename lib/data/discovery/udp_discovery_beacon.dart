@@ -48,7 +48,7 @@ class UdpDiscoveryBeacon {
 
       // Join standard DropFlow multicast group
       try {
-        _socket!.joinMulticast(InternetAddress(AppConstants.dropFlowUdpMulticast));
+        _socket!.joinMulticast(InternetAddress(AppConstants.neReSendUdpMulticast));
       } catch (_) {
         // Multicast join might not be supported on all interfaces; broadcast fallback works
       }
@@ -84,7 +84,7 @@ class UdpDiscoveryBeacon {
       final jsonStr = utf8.decode(datagram.data);
       final json = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-      if (json['proto'] != 'dropflow_udp_v1') return;
+      if (json['proto'] != 'neresend_udp_v1') return;
 
       final deviceId = json['id'] as String;
       final fingerprint = json['fingerprint'] as String;
@@ -123,7 +123,7 @@ class UdpDiscoveryBeacon {
     if (_socket == null) return;
 
     final payload = jsonEncode({
-      'proto': 'dropflow_udp_v1',
+      'proto': 'neresend_udp_v1',
       'id': localIdentity.deviceId,
       'alias': localIdentity.alias,
       'port': tcpServicePort,
@@ -138,7 +138,7 @@ class UdpDiscoveryBeacon {
     try {
       _socket!.send(
         bytes,
-        InternetAddress(AppConstants.dropFlowUdpMulticast),
+        InternetAddress(AppConstants.neReSendUdpMulticast),
         listeningPort,
       );
     } catch (_) {}
@@ -147,7 +147,7 @@ class UdpDiscoveryBeacon {
     try {
       _socket!.send(
         bytes,
-        InternetAddress(AppConstants.dropFlowUdpBroadcast),
+        InternetAddress(AppConstants.neReSendUdpBroadcast),
         listeningPort,
       );
     } catch (_) {}

@@ -1,13 +1,13 @@
 import '../models/discovered_peer.dart';
-import 'dropflow_transport.dart';
+import 'neresend_transport.dart';
 
-/// Port responsible for creating and accepting authenticated DropFlowTransport instances
+/// Port responsible for creating and accepting authenticated NeReSendTransport instances
 abstract class TransportPort {
   /// Stream of incoming authenticated transport connections from remote peers
-  Stream<DropFlowTransport> get onIncomingTransport;
+  Stream<NeReSendTransport> get onIncomingTransport;
 
   /// Initiate an outbound connection to a discovered peer
-  Future<DropFlowTransport> connect(DiscoveredPeer peer);
+  Future<NeReSendTransport> connect(DiscoveredPeer peer);
 
   /// Start listening for incoming connections on the specified port
   Future<void> startListening(int port);

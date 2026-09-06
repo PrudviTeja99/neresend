@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
-import '../../domain/contracts/dropflow_transport.dart';
+import '../../domain/contracts/neresend_transport.dart';
 import '../../domain/contracts/transfer_protocol_engine.dart';
 import '../../domain/models/device_identity.dart';
 import '../../domain/models/discovered_peer.dart';
@@ -13,7 +13,7 @@ import '../../domain/models/transfer_progress.dart';
 import '../discovery/ble_discovery_driver.dart';
 import '../discovery/lan_discovery_driver.dart';
 import '../discovery/remote_discovery_driver.dart';
-import '../protocol/dropflow_protocol_engine.dart';
+import '../protocol/neresend_protocol_engine.dart';
 import '../transports/direct_link/direct_link_factory.dart';
 import '../transports/local_tls/local_tls_client.dart';
 import '../transports/local_tls/local_tls_server.dart';
@@ -57,7 +57,7 @@ class TransferOrchestrator {
   late final LocalTlsServer localTlsServer;
   late final LocalTlsClient localTlsClient;
   late final WebRtcConnectionManager webrtcManager;
-  late final DropFlowProtocolEngine protocolEngine;
+  late final NeReSendProtocolEngine protocolEngine;
 
   final Map<String, DiscoveredPeer> _aggregatedPeers = {};
   final StreamController<List<DiscoveredPeer>> _peersController =
@@ -101,7 +101,7 @@ class TransferOrchestrator {
     );
 
     webrtcManager = WebRtcConnectionManager();
-    protocolEngine = DropFlowProtocolEngine(localIdentity: localIdentity);
+    protocolEngine = NeReSendProtocolEngine(localIdentity: localIdentity);
   }
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
@@ -177,7 +177,7 @@ class TransferOrchestrator {
   Future<void> sendFiles(DiscoveredPeer peer, List<File> files) async {
     if (files.isEmpty) return;
 
-    DropFlowTransport transport;
+    NeReSendTransport transport;
 
     if (peer.supportedMode == TransferMode.lan) {
       // Connect over TLS 1.3 socket

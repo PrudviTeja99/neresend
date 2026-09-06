@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/transports/direct_link/direct_link_negotiator.dart';
-import 'package:dropflow/domain/contracts/direct_link_adapter.dart';
+import 'package:neresend/data/transports/direct_link/direct_link_negotiator.dart';
+import 'package:neresend/domain/contracts/direct_link_adapter.dart';
 
 void main() {
   group('DirectLinkNegotiator Tests', () {

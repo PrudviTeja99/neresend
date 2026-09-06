@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dropflow/data/discovery/lan_discovery_driver.dart';
-import 'package:dropflow/data/discovery/udp_discovery_beacon.dart';
-import 'package:dropflow/domain/models/device_identity.dart';
+import 'package:neresend/data/discovery/lan_discovery_driver.dart';
+import 'package:neresend/data/discovery/udp_discovery_beacon.dart';
+import 'package:neresend/domain/models/device_identity.dart';
 
 void main() {
   group('LAN Discovery & UDP Beacon Tests', () {

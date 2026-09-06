@@ -1,13 +1,13 @@
 import 'dart:typed_data';
-import '../../core/protocol/dropflow_frame.dart';
+import '../../core/protocol/neresend_frame.dart';
 
 /// Represents an authenticated, full-duplex communication channel
-abstract class DropFlowTransport {
+abstract class NeReSendTransport {
   /// Stream of incoming binary frames parsed from the wire
-  Stream<DropFlowFrame> get incomingFrames;
+  Stream<NeReSendFrame> get incomingFrames;
 
   /// Send a control frame (Auth, Manifest, Accept, Decline, Pause, Resume, Cancel)
-  Future<void> sendFrame(DropFlowFrame frame);
+  Future<void> sendFrame(NeReSendFrame frame);
 
   /// Send a bulk binary chunk with backpressure flow control
   Future<void> sendDataChunk(int fileIdx, int chunkIdx, Uint8List chunkBytes);

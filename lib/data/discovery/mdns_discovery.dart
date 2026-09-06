@@ -74,7 +74,7 @@ class MdnsDiscovery {
 
     try {
       final text = utf8.decode(datagram.data);
-      if (!text.contains('_dropflow._tcp.local.')) return;
+      if (!text.contains('_neresend._tcp.local.')) return;
 
       final json = jsonDecode(text) as Map<String, dynamic>;
       final deviceId = json['id'] as String;

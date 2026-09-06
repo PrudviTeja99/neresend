@@ -5,16 +5,16 @@ import 'presentation/screens/main_scaffold_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: DropFlowApp()));
+  runApp(const ProviderScope(child: NeReSendApp()));
 }
 
-class DropFlowApp extends StatelessWidget {
-  const DropFlowApp({super.key});
+class NeReSendApp extends StatelessWidget {
+  const NeReSendApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DropFlow',
+      title: 'NeReSend',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const MainScaffoldScreen(),

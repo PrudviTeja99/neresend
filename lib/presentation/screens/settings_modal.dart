@@ -281,7 +281,7 @@ class _SettingsModalState extends State<SettingsModal> {
                   // Version / Info
                   Center(
                     child: Text(
-                      'DropFlow v1.0.0 • Pure P2P Zero-Cloud Protocol',
+                      'NeReSend v1.0.0 • Pure P2P Zero-Cloud Protocol',
                       style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textMuted.withValues(alpha: 0.6)),
