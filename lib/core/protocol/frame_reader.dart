@@ -8,7 +8,7 @@ import 'dropflow_frame.dart';
 ///
 /// Handles TCP/WebRTC packet fragmentation, multi-frame bursts in a single buffer,
 /// and enforces the ProtocolConstants.maxFramePayloadSize safety invariant.
-class FrameReader extends StreamTransformerBase<List<int>, DropFlowFrame> {
+class FrameReader implements StreamTransformer<List<int>, DropFlowFrame> {
   final int maxPayloadSize;
 
   const FrameReader({
@@ -22,6 +22,9 @@ class FrameReader extends StreamTransformerBase<List<int>, DropFlowFrame> {
       (sink) => _FrameReaderSink(sink, maxPayloadSize),
     );
   }
+
+  @override
+  StreamTransformer<RS, RT> cast<RS, RT>() => StreamTransformer.castFrom(this);
 }
 
 class _FrameReaderSink implements EventSink<List<int>> {
