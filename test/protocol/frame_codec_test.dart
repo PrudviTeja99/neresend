@@ -11,12 +11,13 @@ void main() {
   group('DropFlow Frame & Codec Tests', () {
     test('NeReSendFrame correctly encodes 5-byte header into wire bytes', () {
       final payload = Uint8List.fromList([1, 2, 3, 4, 5]);
-      final frame = NeReSendFrame(type: ProtocolConstants.frameTypeManifestRequest, payload: payload);
+      final frame = NeReSendFrame(
+          type: ProtocolConstants.frameTypeManifestRequest, payload: payload);
       final wireBytes = frame.toWireBytes();
 
       expect(wireBytes.length, equals(5 + 5));
       expect(wireBytes[0], equals(ProtocolConstants.frameTypeManifestRequest));
-      
+
       final byteData = ByteData.sublistView(wireBytes);
       expect(byteData.getUint32(1, Endian.big), equals(5));
       expect(wireBytes.sublist(5), equals([1, 2, 3, 4, 5]));
@@ -28,7 +29,8 @@ void main() {
       final stream = source.stream.transform(frameReader);
 
       final payload = Uint8List.fromList([10, 20, 30, 40]);
-      final wireBytes = NeReSendFrame(type: 0x10, payload: payload).toWireBytes();
+      final wireBytes =
+          NeReSendFrame(type: 0x10, payload: payload).toWireBytes();
 
       final framesFuture = stream.first;
       source.add(wireBytes);
@@ -39,13 +41,16 @@ void main() {
       expect(frame.payload, equals(payload));
     });
 
-    test('FrameReader handles highly fragmented byte streams (1 byte per packet)', () async {
+    test(
+        'FrameReader handles highly fragmented byte streams (1 byte per packet)',
+        () async {
       const frameReader = FrameReader();
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
       final payload = Uint8List.fromList(List.generate(100, (i) => i % 256));
-      final wireBytes = NeReSendFrame(type: 0x01, payload: payload).toWireBytes();
+      final wireBytes =
+          NeReSendFrame(type: 0x01, payload: payload).toWireBytes();
 
       final completer = Completer<NeReSendFrame>();
       stream.listen(completer.complete);
@@ -62,13 +67,15 @@ void main() {
       expect(frame.payload, equals(payload));
     });
 
-    test('FrameReader handles multiple concatenated frames in one buffer', () async {
+    test('FrameReader handles multiple concatenated frames in one buffer',
+        () async {
       const frameReader = FrameReader();
       final source = StreamController<List<int>>();
       final stream = source.stream.transform(frameReader);
 
       final f1 = NeReSendFrame(type: 0x01, payload: Uint8List.fromList([1, 2]));
-      final f2 = NeReSendFrame(type: 0x02, payload: Uint8List.fromList([3, 4, 5]));
+      final f2 =
+          NeReSendFrame(type: 0x02, payload: Uint8List.fromList([3, 4, 5]));
       final f3 = NeReSendFrame(type: 0x03, payload: Uint8List.fromList([6]));
 
       final concatenated = Uint8List.fromList([
@@ -92,7 +99,8 @@ void main() {
       expect(frames[2].payload, equals([6]));
     });
 
-    test('FrameReader rejects oversized frame exceeding maxPayloadSize', () async {
+    test('FrameReader rejects oversized frame exceeding maxPayloadSize',
+        () async {
       const smallMax = 100;
       const frameReader = FrameReader(maxPayloadSize: smallMax);
       final source = StreamController<List<int>>();

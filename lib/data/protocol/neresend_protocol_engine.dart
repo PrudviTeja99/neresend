@@ -31,7 +31,12 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
 
   final Map<String, SenderSession> _activeSenderSessions = {};
   final Map<String, ReceiverSession> _activeReceiverSessions = {};
-  final Map<String, ({IncomingTransferRequest request, Completer<bool> responseCompleter})> _pendingRequests = {};
+  final Map<
+      String,
+      ({
+        IncomingTransferRequest request,
+        Completer<bool> responseCompleter
+      })> _pendingRequests = {};
 
   NeReSendProtocolEngine({
     required this.localIdentity,
@@ -42,7 +47,8 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
   Stream<TransferProgress> get onProgress => _progressController.stream;
 
   @override
-  Stream<IncomingTransferRequest> get onIncomingRequest => _incomingRequestController.stream;
+  Stream<IncomingTransferRequest> get onIncomingRequest =>
+      _incomingRequestController.stream;
 
   /// Register an active transport to listen for incoming transfer requests
   void listenToTransport(NeReSendTransport transport) {
@@ -53,17 +59,21 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
     sub = transport.incomingFrames.listen(
       (frame) async {
         if (frame.type == ProtocolConstants.frameTypeManifestRequest) {
-          final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
+          final json =
+              jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
           final manifest = TransferManifest.fromJson(json);
           await _handleManifestReceived(manifest, transport);
         } else if (frame.type == ProtocolConstants.frameTypeManifestPart) {
-          final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
+          final json =
+              jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
           final transferId = json['transferId'] as String;
           final filesList = (json['files'] as List<dynamic>)
               .map((f) => TransferItem.fromJson(f as Map<String, dynamic>))
               .toList();
 
-          multiPartAccumulator.putIfAbsent(transferId, () => []).addAll(filesList);
+          multiPartAccumulator
+              .putIfAbsent(transferId, () => [])
+              .addAll(filesList);
 
           partialManifestHeader ??= TransferManifest(
             transferId: transferId,
@@ -75,9 +85,11 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
             createdAt: DateTime.parse(json['createdAt'] as String),
           );
         } else if (frame.type == ProtocolConstants.frameTypeManifestEnd) {
-          final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
+          final json =
+              jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
           final transferId = json['transferId'] as String;
-          final accumulatedFiles = multiPartAccumulator.remove(transferId) ?? [];
+          final accumulatedFiles =
+              multiPartAccumulator.remove(transferId) ?? [];
 
           if (partialManifestHeader != null) {
             final completeManifest = TransferManifest(
@@ -119,9 +131,11 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
   }
 
   @override
-  Future<void> startSenderSession(NeReSendTransport transport, List<File> files) async {
+  Future<void> startSenderSession(
+      NeReSendTransport transport, List<File> files) async {
     if (files.isEmpty) {
-      throw const StorageException('Cannot start transfer with empty file list');
+      throw const StorageException(
+          'Cannot start transfer with empty file list');
     }
 
     final transferId = const Uuid().v4();
@@ -184,10 +198,12 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
   }
 
   @override
-  Future<void> acceptTransfer(String transferId, String destinationDirectory) async {
+  Future<void> acceptTransfer(
+      String transferId, String destinationDirectory) async {
     final pending = _pendingRequests.remove(transferId);
     if (pending == null) {
-      throw StorageException('No pending transfer request found for $transferId');
+      throw StorageException(
+          'No pending transfer request found for $transferId');
     }
 
     final request = pending.request;
@@ -226,8 +242,8 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
     if (_activeSenderSessions.containsKey(transferId)) {
       _activeSenderSessions[transferId]!.pause();
       await _activeSenderSessions[transferId]!.transport.sendFrame(
-        FrameWriter.createPauseCommand(transferId),
-      );
+            FrameWriter.createPauseCommand(transferId),
+          );
     }
   }
 
@@ -236,8 +252,8 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
     if (_activeSenderSessions.containsKey(transferId)) {
       _activeSenderSessions[transferId]!.resume();
       await _activeSenderSessions[transferId]!.transport.sendFrame(
-        FrameWriter.createResumeCommand(transferId),
-      );
+            FrameWriter.createResumeCommand(transferId),
+          );
     }
   }
 
@@ -246,13 +262,13 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
     if (_activeSenderSessions.containsKey(transferId)) {
       _activeSenderSessions[transferId]!.cancel();
       await _activeSenderSessions[transferId]!.transport.sendFrame(
-        FrameWriter.createCancelCommand(transferId),
-      );
+            FrameWriter.createCancelCommand(transferId),
+          );
     } else if (_activeReceiverSessions.containsKey(transferId)) {
       _activeReceiverSessions[transferId]!.cancel();
       await _activeReceiverSessions[transferId]!.transport.sendFrame(
-        FrameWriter.createCancelCommand(transferId),
-      );
+            FrameWriter.createCancelCommand(transferId),
+          );
     }
   }
 
