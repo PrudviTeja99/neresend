@@ -1,0 +1,206 @@
+name: Build & Release Multi-Platform Packages
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ==========================================
+  # 1. LINUX BUILD (AppImage & Tarball)
+  # ==========================================
+  build-linux:
+    name: Build Linux AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            wget \
+            file
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies & Run Tests
+        run: |
+          flutter pub get
+          flutter test
+
+      - name: Build Linux Release Bundle
+        run: flutter build linux --release
+
+      - name: Package Linux AppImage
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/lib
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Copy compiled flutter bundle
+          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+          
+          # Create Desktop file
+          cat << 'DESKTOP' > AppDir/neresend.desktop
+          [Desktop Entry]
+          Name=NeReSend
+          Comment=High-performance zero-cloud P2P file sharing
+          Exec=neresend
+          Icon=neresend
+          Terminal=false
+          Type=Application
+          Categories=Network;FileTransfer;Utility;
+          DESKTOP
+
+          # Use placeholder icon or copy android icon
+          if [ -f "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
+            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/neresend.png
+            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/usr/share/icons/hicolor/256x256/apps/neresend.png
+          fi
+
+          # Create AppRun script
+          cat << 'APPRUN' > AppDir/AppRun
+          #!/bin/sh
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/bin/lib:${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/neresend" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+          # Download and run appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          ARCH=x86_64 ./squashfs-root/AppRun AppDir NeReSend-x86_64.AppImage
+
+          # Create standard tar.gz bundle as well
+          tar -czf NeReSend-Linux-x64.tar.gz -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Linux-AppImage
+          path: NeReSend-x86_64.AppImage
+
+      - name: Upload Linux Tarball Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Linux-Tarball
+          path: NeReSend-Linux-x64.tar.gz
+
+  # ==========================================
+  # 2. ANDROID BUILD (APK)
+  # ==========================================
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk NeReSend-Android.apk
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Android-APK
+          path: NeReSend-Android.apk
+
+  # ==========================================
+  # 3. WINDOWS BUILD (EXE & Portable ZIP)
+  # ==========================================
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Windows Release
+        run: flutter build windows --release
+
+      - name: Package Windows Release ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "NeReSend-Windows-x64.zip"
+
+      - name: Upload Windows ZIP Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Windows-ZIP
+          path: NeReSend-Windows-x64.zip
+
+  # ==========================================
+  # 4. PUBLISH GITHUB RELEASE (On Tags v*)
+  # ==========================================
+  release:
+    name: Publish Release Assets
+    needs: [build-linux, build-android, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/NeReSend-x86_64.AppImage
+            release-assets/NeReSend-Linux-x64.tar.gz
+            release-assets/NeReSend-Android.apk
+            release-assets/NeReSend-Windows-x64.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
