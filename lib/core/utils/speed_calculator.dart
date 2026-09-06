@@ -29,9 +29,13 @@ class SpeedCalculator {
   }
 
   /// Formatted speed string e.g. "48.2 MB/s"
-  String formatSpeed() {
+  String getFormattedSpeed() {
     final bytesPerSec = calculateBytesPerSecond();
-    return '${SizeFormatter.format(bytesPerSec.toInt())}/s';
+    return formatSpeed(bytesPerSec);
+  }
+
+  static String formatSpeed(double bytesPerSecond) {
+    return '${SizeFormatter.format(bytesPerSecond.toInt())}/s';
   }
 
   /// Estimated time remaining given total expected bytes
@@ -46,8 +50,12 @@ class SpeedCalculator {
   }
 
   /// Formatted ETA string e.g. "ETA: 14s" or "ETA: 2m 10s"
-  String formatEta(int currentBytes, int totalBytes) {
+  String getFormattedEta(int currentBytes, int totalBytes) {
     final eta = calculateEta(currentBytes, totalBytes);
+    return formatEta(eta);
+  }
+
+  static String formatEta(Duration eta) {
     if (eta == Duration.zero) return 'Complete';
     if (eta.inHours > 0) {
       return 'ETA: ${eta.inHours}h ${eta.inMinutes.remainder(60)}m';
@@ -68,4 +76,3 @@ class _DataSample {
   final int bytes;
   _DataSample(this.timestampMs, this.bytes);
 }
-

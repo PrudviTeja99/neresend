@@ -4,11 +4,13 @@ import 'dart:math';
 import '../../../core/constants/app_constants.dart';
 import '../../../domain/contracts/direct_link_adapter.dart';
 
-/// Windows Wi-Fi Direct / Mobile Hotspot adapter
+/// Windows Wi-Fi Direct / Hosted Network adapter
 class WindowsDirectAdapter implements DirectLinkAdapter {
   bool _isHosting = false;
   bool _isConnected = false;
-  DirectLinkCredentials? _activeCredentials;
+
+  bool get isHosting => _isHosting;
+  bool get isConnected => _isConnected;
 
   @override
   Future<DirectLinkCapabilities> checkCapabilities() async {
@@ -17,10 +19,8 @@ class WindowsDirectAdapter implements DirectLinkAdapter {
         canHost: false,
         canConnect: false,
         status: DirectLinkStatus.hardwareUnsupported,
-        unsupportedReason: 'WindowsDirectAdapter only runs on Windows',
       );
     }
-
     return const DirectLinkCapabilities(
       canHost: true,
       canConnect: true,
@@ -30,60 +30,29 @@ class WindowsDirectAdapter implements DirectLinkAdapter {
 
   @override
   Future<DirectLinkCredentials> startHosting() async {
-    final random = Random.secure();
-    final ssidSuffix = random.nextInt(9000) + 1000;
-    final ssid = 'DropFlow-$ssidSuffix';
-    final psk = _generateRandomPsk(12);
+    final rand = Random.secure();
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final psk =
+        List.generate(12, (_) => chars[rand.nextInt(chars.length)]).join();
 
-    final hostIp = await _resolveLocalIp() ?? '192.168.137.1';
-
-    _activeCredentials = DirectLinkCredentials(
-      ssid: ssid,
+    final creds = DirectLinkCredentials(
+      ssid: 'DropFlow-Windows-${rand.nextInt(9000) + 1000}',
       psk: psk,
-      hostIp: hostIp,
+      hostIp: '192.168.137.1', // Windows standard ICS hotspot gateway
       port: AppConstants.tcpTlsPort,
     );
-
     _isHosting = true;
-    return _activeCredentials!;
+    return creds;
   }
 
   @override
   Future<void> connectToHost(DirectLinkCredentials credentials) async {
     _isConnected = true;
-    _activeCredentials = credentials;
   }
 
   @override
   Future<void> stop() async {
     _isHosting = false;
     _isConnected = false;
-    _activeCredentials = null;
-  }
-
-  Future<String?> _resolveLocalIp() async {
-    try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: false,
-        type: InternetAddressType.IPv4,
-      );
-
-      for (final iface in interfaces) {
-        if (iface.name.toLowerCase().contains('wi-fi') || iface.name.toLowerCase().contains('wireless')) {
-          for (final addr in iface.addresses) {
-            if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
-              return addr.address;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  String _generateRandomPsk(int length) {
-    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final rand = Random.secure();
-    return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 }

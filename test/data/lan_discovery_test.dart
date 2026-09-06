@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dropflow/data/discovery/lan_discovery_driver.dart';
 import 'package:dropflow/data/discovery/udp_discovery_beacon.dart';
@@ -22,7 +21,8 @@ void main() {
       publicKeyBytes: [4, 5, 6],
     );
 
-    test('UDP discovery beacon initializes and broadcasts without error', () async {
+    test('UDP discovery beacon initializes and broadcasts without error',
+        () async {
       final beacon1 = UdpDiscoveryBeacon(
         localIdentity: localIdentity1,
         listeningPort: 54321,

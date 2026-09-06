@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../services/identity_service.dart';
 import '../../../domain/contracts/dropflow_transport.dart';
@@ -30,7 +29,8 @@ class LocalTlsServer implements TransportPort {
   });
 
   @override
-  Stream<DropFlowTransport> get onIncomingTransport => _incomingConnections.stream;
+  Stream<DropFlowTransport> get onIncomingTransport =>
+      _incomingConnections.stream;
 
   bool get isListening => _serverSocket != null;
   int? get boundPort => _serverSocket?.port;
@@ -39,7 +39,8 @@ class LocalTlsServer implements TransportPort {
   Future<void> startListening(int port) async {
     if (_serverSocket != null) return;
 
-    final context = customSecurityContext ?? TlsCertificateManager.createServerContext();
+    final context =
+        customSecurityContext ?? TlsCertificateManager.createServerContext();
 
     try {
       _serverSocket = await SecureServerSocket.bind(
@@ -56,7 +57,8 @@ class LocalTlsServer implements TransportPort {
         },
       );
     } catch (e) {
-      throw NetworkException('Failed to bind TLS server to port $port: $e', cause: e);
+      throw NetworkException('Failed to bind TLS server to port $port: $e',
+          cause: e);
     }
   }
 

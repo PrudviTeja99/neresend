@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
 import '../../core/protocol/dropflow_frame.dart';
@@ -93,7 +92,8 @@ class SenderSession {
 
       if (!_isCancelled) {
         // 4. Send Transfer Complete
-        await transport.sendFrame(FrameWriter.createTransferComplete(manifest.transferId));
+        await transport
+            .sendFrame(FrameWriter.createTransferComplete(manifest.transferId));
         _emitProgress(TransferStatus.completed, manifest.totalBytes);
       }
     } catch (e) {
@@ -112,7 +112,8 @@ class SenderSession {
   ) async {
     switch (frame.type) {
       case ProtocolConstants.frameTypeAcceptResponse:
-        final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
+        final json =
+            jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
         final rawRangesMap = json['ranges'] as Map<String, dynamic>? ?? {};
         final parsedMap = <int, List<ChunkRange>>{};
         rawRangesMap.forEach((key, val) {
@@ -128,11 +129,13 @@ class SenderSession {
         break;
 
       case ProtocolConstants.frameTypeDeclineResponse:
-        final json = jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
+        final json =
+            jsonDecode(utf8.decode(frame.payload)) as Map<String, dynamic>;
         final reason = json['reason'] as String? ?? 'DECLINED';
         if (!acceptCompleter.isCompleted) {
           acceptCompleter.completeError(
-            ProtocolException('Transfer declined by peer: $reason', code: reason),
+            ProtocolException('Transfer declined by peer: $reason',
+                code: reason),
           );
         }
         break;
@@ -156,7 +159,8 @@ class SenderSession {
     }
   }
 
-  Future<void> _streamAllFiles(Map<int, List<ChunkRange>> acceptedRanges) async {
+  Future<void> _streamAllFiles(
+      Map<int, List<ChunkRange>> acceptedRanges) async {
     int totalTransferred = 0;
 
     // Calculate initial transferred bytes from already verified ranges
@@ -175,9 +179,11 @@ class SenderSession {
       final file = files[fileIdx];
       final item = manifest.files[fileIdx];
       final verifiedRanges = acceptedRanges[fileIdx] ?? [];
-      final missingRanges = ChunkRange.computeMissingRanges(verifiedRanges, item.totalChunks);
+      final missingRanges =
+          ChunkRange.computeMissingRanges(verifiedRanges, item.totalChunks);
 
-      if (missingRanges.isEmpty) continue; // Entire file already verified on receiver
+      if (missingRanges.isEmpty)
+        continue; // Entire file already verified on receiver
 
       final raf = await file.open(mode: FileMode.read);
       try {
@@ -244,7 +250,8 @@ class SenderSession {
   void pause() {
     if (_isPaused) return;
     _isPaused = true;
-    _emitProgress(TransferStatus.paused, _speedCalculator.calculateBytesPerSecond().toInt());
+    _emitProgress(TransferStatus.paused,
+        _speedCalculator.calculateBytesPerSecond().toInt());
   }
 
   void resume() {
@@ -252,7 +259,8 @@ class SenderSession {
     _isPaused = false;
     _pauseCompleter?.complete();
     _pauseCompleter = null;
-    _emitProgress(TransferStatus.transferring, _speedCalculator.calculateBytesPerSecond().toInt());
+    _emitProgress(TransferStatus.transferring,
+        _speedCalculator.calculateBytesPerSecond().toInt());
   }
 
   void cancel() {
@@ -274,7 +282,8 @@ class SenderSession {
     final fileName = currentFileIndex < manifest.files.length
         ? manifest.files[currentFileIndex].fileName
         : '';
-    final eta = _speedCalculator.calculateEta(transferredBytes, manifest.totalBytes);
+    final eta =
+        _speedCalculator.calculateEta(transferredBytes, manifest.totalBytes);
 
     final progress = TransferProgress(
       transferId: manifest.transferId,

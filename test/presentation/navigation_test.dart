@@ -3,10 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dropflow/presentation/screens/main_scaffold_screen.dart';
 import 'package:dropflow/presentation/state/identity_provider.dart';
+import 'package:dropflow/presentation/state/readiness_state_provider.dart';
 import 'package:dropflow/domain/models/device_identity.dart';
 
 void main() {
-  testWidgets('MainScaffoldScreen renders 2 tabs and switches between Nearby and Remote', (tester) async {
+  testWidgets(
+      'MainScaffoldScreen renders 2 tabs and switches between Nearby and Remote',
+      (tester) async {
     const mockIdentity = DeviceIdentity(
       deviceId: 'a1b2c3d4e5f60011',
       alias: 'Test Desktop',
@@ -18,13 +21,18 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          identityStateProvider.overrideWith((ref) => MockIdentityNotifier(mockIdentity)),
+          identityStateProvider
+              .overrideWith((ref) => MockIdentityNotifier(mockIdentity)),
+          readinessStateProvider.overrideWithValue(ReadinessState.ready),
         ],
-        child: const MaterialApp(
-          home: MainScaffoldScreen(),
+        child: MaterialApp(
+          home: const MainScaffoldScreen(),
         ),
       ),
     );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     // Initial state: Nearby tab is active
     expect(find.text('Nearby'), findsOneWidget);
@@ -41,8 +49,10 @@ void main() {
   });
 }
 
-class MockIdentityNotifier extends StateNotifier<AsyncValue<DeviceIdentity>> implements IdentityNotifier {
-  MockIdentityNotifier(DeviceIdentity identity) : super(AsyncValue.data(identity));
+class MockIdentityNotifier extends StateNotifier<AsyncValue<DeviceIdentity>>
+    implements IdentityNotifier {
+  MockIdentityNotifier(DeviceIdentity identity)
+      : super(AsyncValue.data(identity));
 
   @override
   Future<void> loadIdentity() async {}
@@ -50,4 +60,3 @@ class MockIdentityNotifier extends StateNotifier<AsyncValue<DeviceIdentity>> imp
   @override
   Future<void> updateAlias(String newAlias) async {}
 }
-

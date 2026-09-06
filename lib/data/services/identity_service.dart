@@ -92,7 +92,8 @@ class IdentityService {
   Future<void> updateAlias(String newAlias) async {
     final sanitized = newAlias.trim();
     if (sanitized.isEmpty) return;
-    final limited = sanitized.length > 32 ? sanitized.substring(0, 32) : sanitized;
+    final limited =
+        sanitized.length > 32 ? sanitized.substring(0, 32) : sanitized;
     await _secureStorage.write(_keyDeviceAlias, limited);
     if (_currentIdentity != null) {
       _currentIdentity = _currentIdentity!.copyWith(alias: limited);
@@ -127,19 +128,27 @@ class IdentityService {
 
   /// Pins a peer's identity fingerprint as trusted for safe auto-accept
   Future<void> trustPeer(String fingerprint) async {
-    await _secureStorage.write('$_prefixTrustedPeer$fingerprint', DateTime.now().toIso8601String());
+    await _secureStorage.write(
+        '$_prefixTrustedPeer$fingerprint', DateTime.now().toIso8601String());
   }
+
+  Future<void> pinTrustedDevice(String fingerprint) => trustPeer(fingerprint);
 
   /// Removes a peer's fingerprint from trusted list
   Future<void> untrustPeer(String fingerprint) async {
     await _secureStorage.delete('$_prefixTrustedPeer$fingerprint');
   }
 
+  Future<void> unpinTrustedDevice(String fingerprint) =>
+      untrustPeer(fingerprint);
+
   /// Checks if a peer's fingerprint is currently pinned as trusted
   Future<bool> isPeerTrusted(String fingerprint) async {
     final record = await _secureStorage.read('$_prefixTrustedPeer$fingerprint');
     return record != null;
   }
+
+  Future<bool> isTrusted(String fingerprint) => isPeerTrusted(fingerprint);
 
   /// Derives a 16-character Device ID from public key
   static String computeDeviceId(List<int> publicKeyBytes) {
@@ -174,4 +183,3 @@ class IdentityService {
     return 'DropFlow Device';
   }
 }
-

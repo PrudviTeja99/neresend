@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
-import 'package:dropflow/domain/integrity/chunk_hasher.dart';
 import 'package:dropflow/domain/integrity/part_file_manager.dart';
 import 'package:dropflow/domain/models/chunk_range.dart';
 import 'package:dropflow/domain/models/transfer_item.dart';
@@ -40,7 +39,9 @@ void main() {
       );
     });
 
-    test('Sparse chunk writes, sidecar metadata updates, and atomic finalization', () async {
+    test(
+        'Sparse chunk writes, sidecar metadata updates, and atomic finalization',
+        () async {
       // Create test data: 3 chunks of 10 bytes = 30 bytes
       final chunk0 = Uint8List.fromList(List.generate(10, (i) => i));
       final chunk1 = Uint8List.fromList(List.generate(10, (i) => i + 10));
@@ -88,7 +89,8 @@ void main() {
         downloadDir: tempDir.path,
         item: item,
       );
-      expect(reloadedRanges, equals([const ChunkRange(0, 0), const ChunkRange(2, 2)]));
+      expect(reloadedRanges,
+          equals([const ChunkRange(0, 0), const ChunkRange(2, 2)]));
 
       // 4. Fill hole: write chunk 1
       ranges = await PartFileManager.writeVerifiedChunk(
@@ -111,8 +113,10 @@ void main() {
       expect(await finalFile.readAsBytes(), equals(allBytes));
 
       // 6. Verify sidecar cleanup
-      final partFile = File(PartFileManager.getPartPath(tempDir.path, 'test_sparse.bin'));
-      final metaFile = File(PartFileManager.getMetaPath(tempDir.path, 'test_sparse.bin'));
+      final partFile =
+          File(PartFileManager.getPartPath(tempDir.path, 'test_sparse.bin'));
+      final metaFile =
+          File(PartFileManager.getMetaPath(tempDir.path, 'test_sparse.bin'));
       expect(await partFile.exists(), isFalse);
       expect(await metaFile.exists(), isFalse);
     });

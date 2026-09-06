@@ -13,5 +13,6 @@ class SizeFormatter {
     final value = bytes / math.pow(1024, unitIndex);
     return '${value.toStringAsFixed(unitIndex == 0 ? 0 : 1)} ${_suffixes[unitIndex]}';
   }
-}
 
+  static String formatBytes(int bytes) => format(bytes);
+}

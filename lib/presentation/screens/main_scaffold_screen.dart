@@ -1,20 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/speed_calculator.dart';
+import '../../domain/models/transfer_progress.dart';
+import '../state/active_transfer_provider.dart';
 import '../state/navigation_provider.dart';
+import '../state/orchestrator_provider.dart';
 import '../widgets/docked_transfer_bar.dart';
+import '../widgets/incoming_transfer_modal.dart';
+import '../widgets/transfer_progress_sheet.dart';
 import 'history_modal.dart';
 import 'nearby_tab_screen.dart';
 import 'remote_tab_screen.dart';
 import 'settings_modal.dart';
 
 /// Root shell with 2-Tab Navigation (Nearby | Remote), persistent header, and docked transfer bar
-class MainScaffoldScreen extends ConsumerWidget {
+class MainScaffoldScreen extends ConsumerStatefulWidget {
   const MainScaffoldScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainScaffoldScreen> createState() => _MainScaffoldScreenState();
+}
+
+class _MainScaffoldScreenState extends ConsumerState<MainScaffoldScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Setup incoming transfer prompt listener after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(transferOrchestratorProvider).whenData((orchestrator) {
+        orchestrator.onIncomingTransferPrompt.listen((prompt) {
+          if (mounted) {
+            IncomingTransferModal.show(context, prompt);
+          }
+        });
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeTab = ref.watch(activeTabProvider);
+    final activeTransfer = ref.watch(activeTransferProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -23,10 +51,11 @@ class MainScaffoldScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.2),
+                color: AppColors.primary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.swap_calls_rounded, color: AppColors.primary, size: 20),
+              child: const Icon(Icons.swap_calls_rounded,
+                  color: AppColors.primary, size: 20),
             ),
             const SizedBox(width: 10),
             const Text('DropFlow'),
@@ -34,28 +63,16 @@ class MainScaffoldScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded, color: AppColors.textSecondary),
+            icon: const Icon(Icons.history_rounded,
+                color: AppColors.textSecondary),
             tooltip: 'Transfer History',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => const HistoryModal(),
-              );
-            },
+            onPressed: () => HistoryModal.show(context),
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
+            icon: const Icon(Icons.settings_outlined,
+                color: AppColors.textSecondary),
             tooltip: 'Settings & Identity',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => const SettingsModal(),
-              );
-            },
+            onPressed: () => SettingsModal.show(context),
           ),
           const SizedBox(width: 8),
         ],
@@ -105,8 +122,30 @@ class MainScaffoldScreen extends ConsumerWidget {
               ),
             ),
 
-            // Persistent Docked Transfer Bar Slot (Visible when transfer is active)
-            const DockedTransferBar(),
+            // Persistent Docked Transfer Bar (Spotify mini-player style)
+            if (activeTransfer != null)
+              DockedTransferBar(
+                activeFileName: activeTransfer.currentFileName.isEmpty
+                    ? 'Transferring...'
+                    : activeTransfer.currentFileName,
+                progress: activeTransfer.progressFraction,
+                speedText: SpeedCalculator.formatSpeed(
+                    activeTransfer.speedBytesPerSecond),
+                etaText: SpeedCalculator.formatEta(
+                    activeTransfer.estimatedTimeRemaining),
+                isPaused: activeTransfer.status == TransferStatus.paused,
+                onPauseToggle: () async {
+                  if (activeTransfer.status == TransferStatus.paused) {
+                    await ref.read(activeTransferProvider.notifier).resume();
+                  } else {
+                    await ref.read(activeTransferProvider.notifier).pause();
+                  }
+                },
+                onCancel: () async {
+                  await ref.read(activeTransferProvider.notifier).cancel();
+                },
+                onTap: () => TransferProgressSheet.show(context),
+              ),
           ],
         ),
       ),
@@ -161,4 +200,3 @@ class _TabButton extends StatelessWidget {
     );
   }
 }
-

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 /// Application-layer mutual authentication payload exchanged immediately after transport open
@@ -29,7 +28,8 @@ class AuthHandshake {
 
   factory AuthHandshake.fromBytes(Uint8List bytes) {
     if (bytes.length < 112) {
-      throw const FormatException('AuthHandshake buffer too short (expected 112 bytes)');
+      throw const FormatException(
+          'AuthHandshake buffer too short (expected 112 bytes)');
     }
     final pubKey = bytes.sublist(0, 32);
     final nonce = bytes.sublist(32, 48);
@@ -41,4 +41,3 @@ class AuthHandshake {
     );
   }
 }
-

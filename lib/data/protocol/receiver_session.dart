@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import '../../core/constants/protocol_constants.dart';
 import '../../core/errors/exceptions.dart';
 import '../../core/protocol/dropflow_frame.dart';
@@ -48,7 +47,8 @@ class ReceiverSession {
         );
         _verifiedRangesMap[i] = existingRanges;
         final verifiedChunks = ChunkRange.totalVerifiedChunks(existingRanges);
-        _totalTransferredBytes += (verifiedChunks * item.chunkSize).clamp(0, item.size);
+        _totalTransferredBytes +=
+            (verifiedChunks * item.chunkSize).clamp(0, item.size);
 
         await PartFileManager.initializePartFile(
           downloadDir: destinationDirectory,
@@ -92,7 +92,8 @@ class ReceiverSession {
       await _completionCompleter.future;
     } catch (e) {
       if (!_isCancelled) {
-        _emitProgress(TransferStatus.failed, _totalTransferredBytes, errorMessage: e.toString());
+        _emitProgress(TransferStatus.failed, _totalTransferredBytes,
+            errorMessage: e.toString());
       }
       rethrow;
     } finally {
@@ -109,12 +110,14 @@ class ReceiverSession {
         final chunkData = parsed.chunkData;
 
         if (fileIdx >= manifest.files.length) {
-          throw ProtocolException('Invalid fileIndex $fileIdx in incoming chunk');
+          throw ProtocolException(
+              'Invalid fileIndex $fileIdx in incoming chunk');
         }
 
         final item = manifest.files[fileIdx];
         if (chunkIdx >= item.chunkHashes.length) {
-          throw ProtocolException('Invalid chunkIndex $chunkIdx for file ${item.fileName}');
+          throw ProtocolException(
+              'Invalid chunkIndex $chunkIdx for file ${item.fileName}');
         }
 
         final expectedHash = item.chunkHashes[chunkIdx];
@@ -123,7 +126,8 @@ class ReceiverSession {
         final isHashValid = ChunkHasher.verifyChunk(chunkData, expectedHash);
         if (!isHashValid) {
           // Corrupted in transit; send RETRY_CHUNK immediately
-          final retryFrame = FrameWriter.createRetryChunk(fileIndex: fileIdx, chunkIndex: chunkIdx);
+          final retryFrame = FrameWriter.createRetryChunk(
+              fileIndex: fileIdx, chunkIndex: chunkIdx);
           await transport.sendFrame(retryFrame);
           return;
         }
@@ -208,7 +212,8 @@ class ReceiverSession {
     final fileName = currentFileIndex < manifest.files.length
         ? manifest.files[currentFileIndex].fileName
         : '';
-    final eta = _speedCalculator.calculateEta(transferredBytes, manifest.totalBytes);
+    final eta =
+        _speedCalculator.calculateEta(transferredBytes, manifest.totalBytes);
 
     final progress = TransferProgress(
       transferId: manifest.transferId,

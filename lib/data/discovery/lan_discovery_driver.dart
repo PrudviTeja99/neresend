@@ -40,6 +40,7 @@ class LanDiscoveryDriver implements PeerDiscoveryPort {
   @override
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peerController.stream;
 
+  List<DiscoveredPeer> get currentPeers => _aggregatedPeers.values.toList();
   bool get isDiscovering => _isDiscovering;
 
   @override
