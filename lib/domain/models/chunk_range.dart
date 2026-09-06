@@ -38,6 +38,29 @@ class ChunkRange {
     return merged;
   }
 
+  /// Calculates the inverse missing chunk ranges from 0 to totalChunks - 1
+  static List<ChunkRange> computeMissingRanges(List<ChunkRange> verified, int totalChunks) {
+    if (totalChunks <= 0) return [];
+    if (verified.isEmpty) return [ChunkRange(0, totalChunks - 1)];
+
+    final merged = merge(verified);
+    final missing = <ChunkRange>[];
+    int currentExpected = 0;
+
+    for (final range in merged) {
+      if (range.start > currentExpected) {
+        missing.add(ChunkRange(currentExpected, range.start - 1));
+      }
+      currentExpected = range.end + 1;
+    }
+
+    if (currentExpected < totalChunks) {
+      missing.add(ChunkRange(currentExpected, totalChunks - 1));
+    }
+
+    return missing;
+  }
+
   /// Calculates total verified chunk count from a list of disjoint ranges
   static int totalVerifiedChunks(List<ChunkRange> ranges) {
     return ranges.fold(0, (sum, r) => sum + r.count);
@@ -61,4 +84,3 @@ class ChunkRange {
   @override
   String toString() => '[$start..$end]';
 }
-
