@@ -1,0 +1,119 @@
+name: Linux Build
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux AppImage & Tarball
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            wget \
+            file
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build Linux Release Bundle
+        run: flutter build linux --release
+
+      - name: Package AppImage & Tarball
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/lib
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Copy compiled flutter bundle
+          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
+          
+          # Create Desktop file
+          cat << 'DESKTOP' > AppDir/neresend.desktop
+          [Desktop Entry]
+          Name=NeReSend
+          Comment=High-performance zero-cloud P2P file sharing
+          Exec=neresend
+          Icon=neresend
+          Terminal=false
+          Type=Application
+          Categories=Network;FileTransfer;Utility;
+          DESKTOP
+
+          # Icon setup
+          if [ -f "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
+            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/neresend.png
+            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/usr/share/icons/hicolor/256x256/apps/neresend.png
+          fi
+
+          # Create AppRun script
+          cat << 'APPRUN' > AppDir/AppRun
+          #!/bin/sh
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/bin/lib:${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/neresend" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+          # Download and execute appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          ARCH=x86_64 ./squashfs-root/AppRun AppDir NeReSend-x86_64.AppImage
+
+          # Create tarball bundle
+          tar -czf NeReSend-Linux-x64.tar.gz -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Linux-AppImage
+          path: NeReSend-x86_64.AppImage
+
+      - name: Upload Linux Tarball Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeReSend-Linux-Tarball
+          path: NeReSend-Linux-x64.tar.gz
+
+      - name: Attach to GitHub Release (on tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            NeReSend-x86_64.AppImage
+            NeReSend-Linux-x64.tar.gz
+          draft: false
+          prerelease: false
