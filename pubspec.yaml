@@ -1,0 +1,43 @@
+name: dropflow
+description: "DropFlow: A modern, privacy-first, cross-platform P2P file sharing application."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Security & Cryptography
+  flutter_secure_storage: ^9.2.2
+  cryptography: ^2.7.0
+  crypto: ^3.0.3
+
+  # Networking & WebRTC
+  flutter_webrtc: ^0.11.7
+
+  # Device & File I/O
+  file_picker: ^8.0.0
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.2
+  path: ^1.9.0
+
+  # Utilities & Icons
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
