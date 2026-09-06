@@ -1,5 +1,9 @@
 # NeReSend: Cross-Platform P2P File Sharing
 
+[![Android Build](https://github.com/PrudviTeja99/neresend/actions/workflows/android.yml/badge.svg)](https://github.com/PrudviTeja99/neresend/actions/workflows/android.yml)
+[![Linux Build](https://github.com/PrudviTeja99/neresend/actions/workflows/linux.yml/badge.svg)](https://github.com/PrudviTeja99/neresend/actions/workflows/linux.yml)
+[![Windows Build](https://github.com/PrudviTeja99/neresend/actions/workflows/windows.yml/badge.svg)](https://github.com/PrudviTeja99/neresend/actions/workflows/windows.yml)
+
 **NeReSend** is a modern, privacy-first, cross-platform Peer-to-Peer (P2P) file-sharing application for **Android, Linux, and Windows** built with **Flutter**.
 
 It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptographic Identity (Ed25519) with Authenticated Ephemeral TLS 1.3 Sessions**, a unified **Persistent Framed Socket Protocol** with **Invariant-Driven Dynamic Chunk Sizing and Sparse Range Set Resumption**, and a high-performance **RFC 8831 Dual-Channel WebRTC Pipeline** for remote internet sharing.
