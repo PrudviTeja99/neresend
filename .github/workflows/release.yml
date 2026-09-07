@@ -160,7 +160,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     runs-on: ubuntu-22.04
-    needs: [build-android, build-linux, build-windows]
+    needs: [build-android, build-linux]
     steps:
       - name: Download Android Artifact
         uses: actions/download-artifact@v4
@@ -174,12 +174,6 @@ jobs:
           name: release-linux
           path: release-assets
 
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-windows
-          path: release-assets
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -190,7 +184,6 @@ jobs:
             release-assets/NeReSend-Android.apk
             release-assets/NeReSend-x86_64.AppImage
             release-assets/NeReSend-Linux-x64.tar.gz
-            release-assets/NeReSend-Windows-x64.zip
           draft: false
           prerelease: false
 
