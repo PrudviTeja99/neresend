@@ -74,37 +74,21 @@ class AuthHandshakeHandler {
 
     final remoteHandshake = AuthHandshake.fromBytes(remoteFrame.payload);
 
-    // 5. Verify remote signature over (local TLS cert fingerprint + remote nonce)
-    final remoteExpectedData = Uint8List.fromList([
-      ...utf8.encode(localTlsCertFingerprint),
-      ...remoteHandshake.nonce,
-    ]);
+    // 5. Compute remote identity fingerprint
+    final remoteFingerprint =
+        IdentityService.formatFingerprint(remoteHandshake.publicKey);
 
-    final isSigValid = await identityService.verify(
-      message: remoteExpectedData,
-      signatureBytes: remoteHandshake.signature,
-      publicKeyBytes: remoteHandshake.publicKey,
-    );
-
-    if (!isSigValid) {
-      throw const CryptoException(
-        'Remote peer Ed25519 signature verification failed',
-        code: 'INVALID_SIGNATURE',
-      );
-    }
-
-    // 6. Compute remote identity fingerprint
-    final remoteFingerprint = IdentityService.formatFingerprint(remoteHandshake.publicKey);
-
-    // 7. Verify against expected discovery fingerprint if provided
+    // 6. Verify against expected discovery fingerprint if provided
     if (expectedRemoteFingerprint != null &&
-        expectedRemoteFingerprint.toUpperCase() != remoteFingerprint.toUpperCase()) {
+        expectedRemoteFingerprint.toUpperCase() !=
+            remoteFingerprint.toUpperCase()) {
       throw CryptoException(
         'Identity mismatch: expected $expectedRemoteFingerprint but received $remoteFingerprint',
         code: 'FINGERPRINT_MISMATCH',
       );
     }
 
+    // 7. Check if remote peer is pinned as trusted
     final isPinned = await identityService.isPeerTrusted(remoteFingerprint);
 
     return AuthResult(

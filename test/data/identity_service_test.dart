@@ -58,6 +58,16 @@ void main() {
       expect(secondIdentity.publicKeyBase64, firstIdentity.publicKeyBase64);
       expect(secondIdentity.fingerprint, firstIdentity.fingerprint);
       expect(secondIdentity.publicKeyBytes, firstIdentity.publicKeyBytes);
+
+      // Sign with reloaded identity
+      final msg = utf8.encode('Test message');
+      final sig = await secondService.sign(msg);
+      final isValid = await secondService.verify(
+        message: msg,
+        signatureBytes: sig,
+        publicKeyBytes: firstIdentity.publicKeyBytes,
+      );
+      expect(isValid, isTrue);
     });
 
     test('Cryptographic signing and verification with Ed25519', () async {
