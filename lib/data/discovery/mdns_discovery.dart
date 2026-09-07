@@ -26,7 +26,8 @@ class MdnsDiscovery {
   });
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
-  List<DiscoveredPeer> get currentPeers => _peers.values.map((e) => e.peer).toList();
+  List<DiscoveredPeer> get currentPeers =>
+      _peers.values.map((e) => e.peer).toList();
   bool get isRunning => _socket != null;
 
   /// Start mDNS advertiser and scanner
@@ -38,12 +39,15 @@ class MdnsDiscovery {
         InternetAddress.anyIPv4,
         AppConstants.mdnsPort,
         reuseAddress: true,
-        reusePort: true,
+        reusePort: !Platform.isWindows,
       );
 
-      _socket!.multicastHops = 255;
-      _socket!.broadcastEnabled = true;
-
+      try {
+        _socket!.multicastHops = 255;
+      } catch (_) {}
+      try {
+        _socket!.broadcastEnabled = true;
+      } catch (_) {}
       try {
         _socket!.joinMulticast(InternetAddress(AppConstants.mdnsIpv4Multicast));
       } catch (_) {}
@@ -80,7 +84,8 @@ class MdnsDiscovery {
       final deviceId = json['id'] as String;
       final fingerprint = json['fingerprint'] as String;
 
-      if (deviceId == localIdentity.deviceId || fingerprint == localIdentity.fingerprint) {
+      if (deviceId == localIdentity.deviceId ||
+          fingerprint == localIdentity.fingerprint) {
         return;
       }
 

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neresend/data/discovery/lan_discovery_driver.dart';
 import 'package:neresend/data/discovery/udp_discovery_beacon.dart';
@@ -26,14 +25,14 @@ void main() {
         () async {
       final beacon1 = UdpDiscoveryBeacon(
         localIdentity: localIdentity1,
-        listeningPort: 54321,
-        tcpServicePort: 54322,
+        listeningPort: 0,
+        tcpServicePort: 0,
       );
 
       final beacon2 = UdpDiscoveryBeacon(
         localIdentity: localIdentity2,
-        listeningPort: Platform.isWindows ? 54324 : 54321,
-        tcpServicePort: 54323,
+        listeningPort: 0,
+        tcpServicePort: 0,
       );
 
       await beacon1.start();

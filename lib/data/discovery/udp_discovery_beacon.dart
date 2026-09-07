@@ -32,6 +32,8 @@ class UdpDiscoveryBeacon {
       _peers.values.map((e) => e.peer).toList();
   bool get isRunning => _socket != null;
 
+  int get boundPort => _socket?.port ?? listeningPort;
+
   /// Start listening and periodic beacon broadcasting
   Future<void> start() async {
     if (_socket != null) return;
@@ -44,10 +46,14 @@ class UdpDiscoveryBeacon {
         reusePort: !Platform.isWindows,
       );
 
-      _socket!.broadcastEnabled = true;
-      _socket!.multicastHops = 4;
+      try {
+        _socket!.broadcastEnabled = true;
+      } catch (_) {}
+      try {
+        _socket!.multicastHops = 4;
+      } catch (_) {}
 
-      // Join standard DropFlow multicast group
+      // Join standard NeReSend multicast group
       try {
         _socket!
             .joinMulticast(InternetAddress(AppConstants.neReSendUdpMulticast));
@@ -137,12 +143,14 @@ class UdpDiscoveryBeacon {
 
     final bytes = utf8.encode(payload);
 
+    final targetPort = listeningPort == 0 ? boundPort : listeningPort;
+
     // 1. Send to Multicast Group 224.0.0.167
     try {
       _socket!.send(
         bytes,
         InternetAddress(AppConstants.neReSendUdpMulticast),
-        listeningPort,
+        targetPort,
       );
     } catch (_) {}
 
@@ -151,7 +159,7 @@ class UdpDiscoveryBeacon {
       _socket!.send(
         bytes,
         InternetAddress(AppConstants.neReSendUdpBroadcast),
-        listeningPort,
+        targetPort,
       );
     } catch (_) {}
   }
