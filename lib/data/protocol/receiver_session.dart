@@ -67,15 +67,20 @@ class ReceiverSession {
       _emitProgress(TransferStatus.transferring, _totalTransferredBytes);
 
       // 3. Listen for incoming data chunks and control commands
+      Future<void> processingChain = Future.value();
+
       _frameSubscription = transport.incomingFrames.listen(
-        (frame) async {
-          try {
-            await _handleIncomingFrame(frame);
-          } catch (e) {
-            if (!_completionCompleter.isCompleted) {
-              _completionCompleter.completeError(e);
+        (frame) {
+          processingChain = processingChain.then((_) async {
+            if (_isCancelled) return;
+            try {
+              await _handleIncomingFrame(frame);
+            } catch (e) {
+              if (!_completionCompleter.isCompleted) {
+                _completionCompleter.completeError(e);
+              }
             }
-          }
+          });
         },
         onError: (err) {
           if (!_completionCompleter.isCompleted) {
@@ -83,9 +88,11 @@ class ReceiverSession {
           }
         },
         onDone: () {
-          if (!_completionCompleter.isCompleted && !_isCancelled) {
-            _completionCompleter.complete();
-          }
+          processingChain.then((_) {
+            if (!_completionCompleter.isCompleted && !_isCancelled) {
+              _completionCompleter.complete();
+            }
+          });
         },
       );
 

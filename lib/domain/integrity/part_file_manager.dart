@@ -126,10 +126,9 @@ class PartFileManager {
     }
 
     // Sparse random-access write at chunk offset
-    // Uses FileMode.write to enable setPosition() for out-of-order chunk arrival.
-    // FileMode.append would ignore setPosition() and force writes to EOF, corrupting file structure.
+    // Uses FileMode.append to open in read/write mode without truncating existing content.
     final offset = chunkIndex * item.chunkSize;
-    final raf = await partFile.open(mode: FileMode.write);
+    final raf = await partFile.open(mode: FileMode.append);
     try {
       await raf.setPosition(offset);
       await raf.writeFrom(chunkBytes);
