@@ -100,9 +100,17 @@ void main() {
       // 4. Handle receiver incoming request and accept
       final requestAccepted = Completer<void>();
       receiverEngine.onIncomingRequest.listen((request) async {
-        await receiverEngine.acceptTransfer(
-            request.transferId, tempReceiverDir.path);
-        requestAccepted.complete();
+        try {
+          await receiverEngine.acceptTransfer(
+              request.transferId, tempReceiverDir.path);
+          if (!requestAccepted.isCompleted) {
+            requestAccepted.complete();
+          }
+        } catch (e, st) {
+          if (!requestAccepted.isCompleted) {
+            requestAccepted.completeError(e, st);
+          }
+        }
       });
 
       final senderCompleted = Completer<void>();

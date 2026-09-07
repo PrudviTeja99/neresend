@@ -187,12 +187,21 @@ class PartFileManager {
       }
     }
 
-    // Atomic rename
-    await partFile.rename(finalPath);
+    // Atomic rename with fallback for Windows locked file handles
+    try {
+      await partFile.rename(finalPath);
+    } catch (_) {
+      await partFile.copy(finalPath);
+      try {
+        await partFile.delete();
+      } catch (_) {}
+    }
 
     // Delete sidecar meta file
     if (await metaFile.exists()) {
-      await metaFile.delete();
+      try {
+        await metaFile.delete();
+      } catch (_) {}
     }
 
     return finalFile;

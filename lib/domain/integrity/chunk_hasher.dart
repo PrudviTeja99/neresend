@@ -89,8 +89,7 @@ class ChunkHasher {
     required String expectedSha256,
   }) async {
     if (!await file.exists()) return false;
-    final fileStream = file.openRead();
-    final digest = await sha256.bind(fileStream).first;
-    return digest.toString().toLowerCase() == expectedSha256.toLowerCase();
+    final fileData = await hashFile(file: file, chunkSize: 1024 * 1024);
+    return fileData.wholeFileSha256.toLowerCase() == expectedSha256.toLowerCase();
   }
 }
