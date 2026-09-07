@@ -1,14 +1,64 @@
-# Flutter / Dart
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code related
+.vscode/
+
+# Flutter / Dart / Pub related
+**/doc/api/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 .pub-cache/
 .pub/
-build/
+/build/
 *.dill
+*.tgz
 
-# IDE
-.idea/
-.vscode/
-*.iml
+# Android related
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.apk
+*.aab
+*.aar
+
+# Linux related
+linux/flutter/ephemeral/
+AppDir/
+appimagetool
+squashfs-root/
+*.AppImage
+*.tar.gz
+
+# Windows related
+windows/flutter/ephemeral/
+*.zip
+
+# NeReSend Part & Integrity Transfer Temp Files
+*.part
+*.part.meta

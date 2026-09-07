@@ -226,3 +226,4 @@ jobs:
             release-assets/NeReSend-Windows-x64.zip
           draft: false
           prerelease: false
+
