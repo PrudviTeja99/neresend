@@ -80,6 +80,29 @@ Comprehensive design and execution documents are located in the [`docs/`](./docs
 
 ---
 
+## 🌐 Network & Firewall Configuration
+
+NeReSend operates purely peer-to-peer without cloud servers. For local transfers on the **Nearby** tab, ensure your system allows incoming local network traffic on the following ports:
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| **53318** | **TCP** | Local TLS 1.3 Streaming Transfer & Ed25519 Mutual Authentication |
+| **53317** | **UDP** | LAN Discovery Multicast Beacon (`224.0.0.167`) |
+| **5353** | **UDP** | Multicast DNS (mDNS) Discovery (`_neresend._tcp.local`) |
+
+### Linux (`ufw`)
+If `ufw` is active on your Linux desktop, allow NeReSend traffic with:
+```bash
+sudo ufw allow 53318/tcp
+sudo ufw allow 53317/udp
+```
+*(Or trust your entire local subnet, e.g. `sudo ufw allow from 192.168.0.0/16`)*
+
+### Windows Firewall
+On first launch, Windows Defender Firewall will prompt for network access. Make sure **Private networks** is checked to allow local LAN discovery and file transfer.
+
+---
+
 ## 🛠️ Tech Stack Summary
 
 * **UI & Presentation:** Flutter & Dart, Riverpod State Management

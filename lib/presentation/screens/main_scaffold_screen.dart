@@ -26,12 +26,23 @@ class MainScaffoldScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScaffoldScreenState extends ConsumerState<MainScaffoldScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Setup incoming transfer prompt listener after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(transferOrchestratorProvider).whenData((orchestrator) {
   StreamSubscription<IncomingTransferPrompt>? _promptSubscription;
 
   void _subscribeToOrchestrator(TransferOrchestrator orchestrator) {
     _promptSubscription?.cancel();
     _promptSubscription =
         orchestrator.onIncomingTransferPrompt.listen((prompt) {
+          if (mounted) {
+            IncomingTransferModal.show(context, prompt);
+          }
+        });
+      });
       if (mounted) {
         IncomingTransferModal.show(context, prompt);
       }
@@ -150,6 +161,10 @@ class _MainScaffoldScreenState extends ConsumerState<MainScaffoldScreen> {
                     ? 'Transferring...'
                     : activeTransfer.currentFileName,
                 progress: activeTransfer.progressFraction,
+                speedText: SpeedCalculator.formatSpeed(
+                    activeTransfer.speedBytesPerSecond),
+                etaText: SpeedCalculator.formatEta(
+                    activeTransfer.estimatedTimeRemaining),
                 speedText: activeTransfer.status == TransferStatus.negotiating
                     ? 'Waiting for approval...'
                     : SpeedCalculator.formatSpeed(
