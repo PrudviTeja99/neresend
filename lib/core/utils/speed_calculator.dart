@@ -56,7 +56,6 @@ class SpeedCalculator {
   }
 
   static String formatEta(Duration eta) {
-    if (eta == Duration.zero) return 'Complete';
     if (eta == Duration.zero) return '';
     if (eta.inHours > 0) {
       return 'ETA: ${eta.inHours}h ${eta.inMinutes.remainder(60)}m';
