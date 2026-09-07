@@ -12,7 +12,8 @@ import 'package:neresend/domain/models/transfer_progress.dart';
 
 /// In-memory bidirectional mock transport linking two endpoints directly
 class MockDuplexTransport implements NeReSendTransport {
-  final StreamController<NeReSendFrame> _incoming = StreamController<NeReSendFrame>.broadcast();
+  final StreamController<NeReSendFrame> _incoming =
+      StreamController<NeReSendFrame>.broadcast();
   late MockDuplexTransport _peer;
   bool _connected = true;
 
@@ -39,7 +40,8 @@ class MockDuplexTransport implements NeReSendTransport {
   }
 
   @override
-  Future<void> sendDataChunk(int fileIdx, int chunkIdx, Uint8List chunkBytes) async {
+  Future<void> sendDataChunk(
+      int fileIdx, int chunkIdx, Uint8List chunkBytes) async {
     if (!_connected) throw StateError('Transport disconnected');
     final frame = FrameWriter.createFileDataChunk(
       fileIndex: fileIdx,
@@ -92,16 +94,20 @@ void main() {
     });
 
     test('End-to-End file transfer over MockDuplexTransport', () async {
-      final (senderTransport, receiverTransport) = MockDuplexTransport.createPair();
+      final (senderTransport, receiverTransport) =
+          MockDuplexTransport.createPair();
 
       // Create a test file on sender disk (2.5 MB)
       final testFile = File('${tempSenderDir.path}/sample_document.pdf');
-      final payloadBytes = Uint8List.fromList(List.generate(2500000, (i) => i % 256));
+      final payloadBytes =
+          Uint8List.fromList(List.generate(2500000, (i) => i % 256));
       await testFile.writeAsBytes(payloadBytes);
       final expectedSha256 = sha256.convert(payloadBytes).toString();
 
-      final senderEngine = NeReSendProtocolEngine(localIdentity: senderIdentity);
-      final receiverEngine = NeReSendProtocolEngine(localIdentity: receiverIdentity);
+      final senderEngine =
+          NeReSendProtocolEngine(localIdentity: senderIdentity);
+      final receiverEngine =
+          NeReSendProtocolEngine(localIdentity: receiverIdentity);
 
       receiverEngine.listenToTransport(receiverTransport);
 
@@ -109,12 +115,15 @@ void main() {
       final receiverRequestCompleter = Completer<void>();
       receiverEngine.onIncomingRequest.listen((request) async {
         expect(request.manifest.files.length, equals(1));
-        expect(request.manifest.files.first.fileName, equals('sample_document.pdf'));
+        expect(request.manifest.files.first.fileName,
+            equals('sample_document.pdf'));
         expect(request.manifest.files.first.size, equals(2500000));
-        expect(request.manifest.files.first.wholeFileSha256, equals(expectedSha256));
+        expect(request.manifest.files.first.wholeFileSha256,
+            equals(expectedSha256));
 
         // Accept the transfer into receiver directory
-        await receiverEngine.acceptTransfer(request.transferId, tempReceiverDir.path);
+        await receiverEngine.acceptTransfer(
+            request.transferId, tempReceiverDir.path);
         receiverRequestCompleter.complete();
       });
 
@@ -129,7 +138,8 @@ void main() {
       });
 
       // Start sender session
-      final sendFuture = senderEngine.startSenderSession(senderTransport, [testFile]);
+      final sendFuture =
+          senderEngine.startSenderSession(senderTransport, [testFile]);
 
       // Await acceptance and completion
       await receiverRequestCompleter.future;
@@ -140,7 +150,8 @@ void main() {
       expect(await receivedFile.exists(), isTrue);
       expect(await receivedFile.length(), equals(2500000));
 
-      final receivedDigest = sha256.convert(await receivedFile.readAsBytes()).toString();
+      final receivedDigest =
+          sha256.convert(await receivedFile.readAsBytes()).toString();
       expect(receivedDigest, equals(expectedSha256));
 
       await senderTransport.close();
