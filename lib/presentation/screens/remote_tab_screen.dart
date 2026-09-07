@@ -71,7 +71,8 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
     _countdownTimer?.cancel();
 
     try {
-      final info = await orchestrator.startRemoteHostSession(forceNew: forceNew);
+      final info =
+          await orchestrator.startRemoteHostSession(forceNew: forceNew);
       if (mounted) {
         setState(() {
           _sessionInfo = info;
@@ -181,8 +182,8 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
               Text(
                 'Initialization Error: $error',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 15),
+                style:
+                    const TextStyle(color: AppColors.textPrimary, fontSize: 15),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -268,7 +269,8 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: AppColors.offlineRed.withValues(alpha: 0.1),
+                                color:
+                                    AppColors.offlineRed.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Column(
@@ -306,8 +308,8 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.background,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppColors.surfaceHighlight),
+                              border:
+                                  Border.all(color: AppColors.surfaceHighlight),
                             ),
                             child: Text(
                               _generatedPin,
@@ -343,7 +345,9 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                               TextButton.icon(
                                 icon: const Icon(Icons.refresh, size: 14),
                                 label: Text(
-                                    _isCreatingSession ? 'Creating...' : 'New PIN',
+                                    _isCreatingSession
+                                        ? 'Creating...'
+                                        : 'New PIN',
                                     style: const TextStyle(fontSize: 12)),
                                 onPressed: _isCreatingSession
                                     ? null
@@ -362,8 +366,8 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(
-                                            content:
-                                                Text('PIN copied to clipboard!'),
+                                            content: Text(
+                                                'PIN copied to clipboard!'),
                                             duration: Duration(seconds: 2),
                                           ),
                                         );
@@ -464,4 +468,3 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
     );
   }
 }
-

@@ -144,7 +144,8 @@ void main() {
     final avatarCenter = tester.getCenter(find.byType(CenterDeviceAvatar));
     expect(
         avatarCenter.dx, closeTo(640, 20.0)); // centered horizontally in 1280
-    expect(avatarCenter.dy, closeTo(480, 50.0)); // centered in body (800 - ~112 appBar)
+    expect(avatarCenter.dy,
+        closeTo(480, 50.0)); // centered in body (800 - ~112 appBar)
 
     // Verify bottom action button is docked near the bottom
     final buttonCenter = tester.getCenter(find.text('Select Peer to Send'));
@@ -162,11 +163,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    final mobileAvatarCenter = tester.getCenter(find.byType(CenterDeviceAvatar));
+    final mobileAvatarCenter =
+        tester.getCenter(find.byType(CenterDeviceAvatar));
     expect(mobileAvatarCenter.dx,
         closeTo(200, 15.0)); // centered horizontally in 400
-    expect(mobileAvatarCenter.dy,
-        closeTo(480, 50.0)); // centered in body
+    expect(mobileAvatarCenter.dy, closeTo(480, 50.0)); // centered in body
     final mobileButtonCenter =
         tester.getCenter(find.text('Select Peer to Send'));
     expect(mobileButtonCenter.dx, closeTo(200, 15.0));

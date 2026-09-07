@@ -15,12 +15,14 @@ This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataCha
    - Receiver generates QR code containing `neresend://pair?session=<id>&token=<token>&pin=<code>`.
    - Sender scans QR for instant 1-tap connection with zero manual typing.
 4. Configure `flutter_webrtc` `RTCPeerConnection` with public STUN servers (`stun.l.google.com:19302`) and **TURN relay fallback** to guarantee connectivity across strict symmetric NATs and enterprise/carrier firewalls.
-5. Implement **RFC 8831 Dual DataChannels**:
+5. Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on both offer and answer generation to prevent native audio subsystem / ADM initialization crashes on desktop/Linux.
+6. Implement **Centralized & Idempotent Connection Lifecycle Teardown** (`disposeConnection()`) ensuring clean sequential regeneration ("New PIN"), session expiration, and error handling.
+7. Implement **RFC 8831 Dual DataChannels**:
    - `'control'` channel: Priority stream for manifests, SAS verification, and instant $< 20\text{ ms}$ pause/cancel commands.
    - `'data'` channel: Bulk binary data stream with dynamic chunks (1–4 MB).
-6. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
-7. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived from DTLS fingerprints.
-8. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
+8. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
+9. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived from DTLS fingerprints.
+10. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
 
 ---
 
@@ -147,14 +149,24 @@ class WebRtcBackpressureStreamer {
 
 ## 🧪 Verification & Network Simulation Tests
 
-- [ ] `test/data/signaling_client_test.dart`:
-  - Validates 10-minute PIN expiration timer.
+- [x] `test/data/remote_signaling_client_test.dart`:
+  - Validates 5-minute session countdown & auto-cleanup.
+  - Validates 128-bit session ID, token generation, and QR URI formatting.
   - Validates 3-strike invalid entry code auto-destruction.
-- [ ] `test/data/sas_generator_test.dart`:
+- [x] `test/data/remote_discovery_driver_test.dart`:
+  - Validates host session creation, PIN matching, and QR pairing.
+- [x] `test/data/webrtc_connection_manager_test.dart`:
+  - Validates data-only SDP constraints (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`).
+  - Validates idempotent connection and channel teardown.
+- [x] `test/presentation/remote_tab_lifecycle_test.dart`:
+  - Validates provider loading, error, and ready state transitions.
+  - Validates countdown timer progression.
+  - Validates sequential "New PIN" regeneration and button lockout.
+- [x] `test/data/sas_generator_test.dart`:
   - Consistent bidirectional 3-emoji generation given identical DTLS fingerprints.
-- [ ] `test/data/webrtc_backpressure_test.dart`:
+- [x] `test/data/webrtc_backpressure_test.dart`:
   - Verifies sender suspends chunk reading when `bufferedAmount > 1 MB`.
   - Verifies total memory consumption stays $< 15\text{ MB}$ even when sending 1 GB synthetic streams.
-- [ ] `test/integration/remote_webrtc_transfer_test.dart`:
+- [x] `test/integration/remote_webrtc_transfer_test.dart`:
   - Full end-to-end file exchange over simulated WebRTC loopback channels with 50ms latency and 2% packet loss.
 

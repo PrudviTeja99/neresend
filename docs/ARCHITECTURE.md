@@ -374,6 +374,28 @@ For devices located in different cities or networks across the internet, NeReSen
    Idle ──► Connecting… ──► ✓ Connected (Ready to send files)
    ```
 
+### D. Data-Only SDP Negotiation & Platform Safety
+* **Elimination of Audio/Video Subsystems:** NeReSend is strictly a high-speed data transfer engine. `WebRtcConnectionManager` explicitly disables media transceiver negotiation on all SDP offers and answers:
+  ```dart
+  static const Map<String, dynamic> dataOnlySdpConstraints = {
+    'mandatory': {
+      'OfferToReceiveAudio': false,
+      'OfferToReceiveVideo': false,
+    },
+    'optional': [],
+  };
+  ```
+* **Desktop & Linux Headless Safety:** Disabling media negotiation prevents native `libwebrtc` from initializing the Audio Device Module (ADM), PulseAudio, or ALSA drivers, eliminating audio-related initialization crashes on desktop and Linux environments.
+
+### E. Idempotent Resource Teardown & Sequential Regeneration Lifecycle
+* **Centralized Teardown:** A single cleanup pathway (`disposeConnection()`) idempotently unbinds event listeners, closes DataChannels, terminates the `RTCPeerConnection`, and purges ephemeral signaling entries across all lifecycle events:
+  - User generates a new PIN ("New PIN")
+  - Remote tab is disposed or app enters background
+  - Session expires after 5 minutes
+  - Connection succeeds or encounters an unrecoverable network error
+* **Sequential "New PIN" Allocation:** When regenerating a session, the UI immediately locks the action button (`Creating...`), sequentially destroys the prior connection and signaling entry, allocates a fresh `RTCPeerConnection`, registers the new session on the signaling bridge, and starts a fresh 5:00 countdown.
+* **Reactive Provider State Machine:** `RemoteTabScreen` natively binds to `transferOrchestratorProvider` via Riverpod's `.when(loading:, error:, data:)`, eliminating silent early returns and guaranteeing the UI always matches background engine readiness.
+
 ---
 
 ## 8. Cryptographic Identity & Security Architecture

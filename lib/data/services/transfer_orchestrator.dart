@@ -229,7 +229,8 @@ class TransferOrchestrator {
     await protocolEngine.startSenderSession(transport, files);
   }
 
-  RemoteSessionInfo? get activeRemoteSession => remoteDiscovery.activeHostSession;
+  RemoteSessionInfo? get activeRemoteSession =>
+      remoteDiscovery.activeHostSession;
 
   ({
     RTCPeerConnection peerConnection,

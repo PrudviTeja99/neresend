@@ -187,6 +187,8 @@ FileSharing/
 * [ ] Implement human-friendly rendezvous model: 6-digit PIN pointer, 128-bit session tokens, 5-minute single-use session countdown.
 * [ ] Implement structured QR Code pairing (`neresend://pair?session=<id>&token=<token>&pin=<code>`) for instant 1-tap mobile pairing.
 * [ ] Configure WebRTC `RTCPeerConnection` with Google STUN servers (`stun.l.google.com:19302`) and TURN relay fallback for strict symmetric NATs.
+* [ ] Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on offer/answer generation to eliminate audio subsystem / ADM initialization on desktop/Linux.
+* [ ] Implement centralized, idempotent WebRTC connection lifecycle teardown (`disposeConnection()`) for sequential regeneration, expiration, and tab disposal.
 * [ ] Implement `WebRtcTransport` implementing `NeReSendTransport` over RFC 8831 Dual DataChannels:
   * `'control'` channel: Priority commands (`CANCEL`, `PAUSE`, `MANIFEST`, SAS emojis).
   * `'data'` channel: Bulk binary payload with $\le 64\text{ KB}$ sub-packetization and `bufferedAmountLowThreshold` (1 MB) backpressure.

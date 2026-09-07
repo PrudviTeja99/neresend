@@ -24,7 +24,8 @@ class FakeTransferOrchestrator implements TransferOrchestrator {
       sessionId: 'sess_$sessionCreationCount',
       authToken: 'token_$sessionCreationCount',
       pin: '777 88$sessionCreationCount',
-      inviteUri: 'neresend://pair?session=sess_$sessionCreationCount&pin=77788$sessionCreationCount',
+      inviteUri:
+          'neresend://pair?session=sess_$sessionCreationCount&pin=77788$sessionCreationCount',
       createdAt: DateTime.now(),
       ttl: const Duration(minutes: 5),
     );
@@ -50,7 +51,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            transferOrchestratorProvider.overrideWith((ref) => completer.future),
+            transferOrchestratorProvider
+                .overrideWith((ref) => completer.future),
           ],
           child: const MaterialApp(
             home: Scaffold(body: RemoteTabScreen()),
@@ -59,7 +61,8 @@ void main() {
       );
 
       await tester.pump();
-      expect(find.text('Initializing secure transfer engine...'), findsOneWidget);
+      expect(
+          find.text('Initializing secure transfer engine...'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
@@ -90,8 +93,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            transferOrchestratorProvider.overrideWith(
-                (ref) => Future.value(fakeOrchestrator)),
+            transferOrchestratorProvider
+                .overrideWith((ref) => Future.value(fakeOrchestrator)),
           ],
           child: const MaterialApp(
             home: Scaffold(body: RemoteTabScreen()),
@@ -119,8 +122,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            transferOrchestratorProvider.overrideWith(
-                (ref) => Future.value(fakeOrchestrator)),
+            transferOrchestratorProvider
+                .overrideWith((ref) => Future.value(fakeOrchestrator)),
           ],
           child: const MaterialApp(
             home: Scaffold(body: RemoteTabScreen()),
