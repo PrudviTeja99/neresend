@@ -1,0 +1,46 @@
+changelog:
+  categories:
+    - title: '🌟 New Features & Enhancements'
+      labels:
+        - 'feature'
+        - 'enhancement'
+      prefixes:
+        - 'feat:'
+        - 'feat('
+        - 'feature:'
+    - title: '🐛 Bug Fixes & Stability Improvements'
+      labels:
+        - 'fix'
+        - 'bug'
+      prefixes:
+        - 'fix:'
+        - 'fix('
+        - 'patch:'
+    - title: '🔒 Security & Authentication'
+      labels:
+        - 'security'
+      prefixes:
+        - 'sec:'
+        - 'auth:'
+        - 'security:'
+    - title: '📚 Documentation & Architecture'
+      labels:
+        - 'documentation'
+        - 'docs'
+      prefixes:
+        - 'docs:'
+        - 'docs('
+    - title: '🛠️ Maintenance & Refactoring'
+      labels:
+        - 'maintenance'
+        - 'refactor'
+        - 'ci'
+      prefixes:
+        - 'refactor:'
+        - 'refactor('
+        - 'chore:'
+        - 'chore('
+        - 'test:'
+        - 'test('
+        - 'ci:'
+        - 'ci('

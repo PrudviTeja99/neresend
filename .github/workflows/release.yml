@@ -37,6 +37,18 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build-android, build-linux]
     steps:
+      - name: Checkout Code & Full Git History
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Professional Release Changelog
+        id: changelog
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name != '' && github.event.inputs.tag_name || github.ref_name }}"
+          echo "Generating release notes for tag: ${TAG_NAME}"
+          python3 .github/scripts/generate_release_notes.py "${TAG_NAME}" release_notes.md
+
       - name: Download Android APK Artifact
         uses: actions/download-artifact@v4
         with:
@@ -60,7 +72,7 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag_name != '' && github.event.inputs.tag_name || github.ref_name }}
           name: NeReSend ${{ github.event.inputs.tag_name != '' && github.event.inputs.tag_name || github.ref_name }}
-          generate_release_notes: true
+          body_path: release_notes.md
           files: |
             release-assets/NeReSend-Android.apk
             release-assets/NeReSend-x86_64.AppImage
