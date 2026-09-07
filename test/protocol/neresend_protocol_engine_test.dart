@@ -148,5 +148,62 @@ void main() {
       senderEngine.dispose();
       receiverEngine.dispose();
     });
+
+    test(
+        'Simulated out-of-order chunk wire arrival delivers and finalizes intact file',
+        () async {
+      final (senderTransport, receiverTransport) =
+          MockDuplexTransport.createPair();
+
+      // Create a test file of 3 MB (will be 3 chunks of 1 MB each)
+      final testFile = File('${tempSenderDir.path}/out_of_order_payload.bin');
+      final payloadBytes =
+          Uint8List.fromList(List.generate(3000000, (i) => (i * 31) % 256));
+      await testFile.writeAsBytes(payloadBytes);
+      final expectedSha256 = sha256.convert(payloadBytes).toString();
+
+      final senderEngine =
+          NeReSendProtocolEngine(localIdentity: senderIdentity);
+      final receiverEngine =
+          NeReSendProtocolEngine(localIdentity: receiverIdentity);
+
+      receiverEngine.listenToTransport(receiverTransport);
+
+      final receiverRequestCompleter = Completer<void>();
+      receiverEngine.onIncomingRequest.listen((request) async {
+        await receiverEngine.acceptTransfer(
+            request.transferId, tempReceiverDir.path);
+        receiverRequestCompleter.complete();
+      });
+
+      final completedSenderCompleter = Completer<void>();
+      senderEngine.onProgress.listen((progress) {
+        if (progress.status == TransferStatus.completed) {
+          if (!completedSenderCompleter.isCompleted) {
+            completedSenderCompleter.complete();
+          }
+        }
+      });
+
+      final sendFuture =
+          senderEngine.startSenderSession(senderTransport, [testFile]);
+
+      await receiverRequestCompleter.future;
+      await Future.wait([sendFuture, completedSenderCompleter.future]);
+
+      final receivedFile =
+          File('${tempReceiverDir.path}/out_of_order_payload.bin');
+      expect(await receivedFile.exists(), isTrue);
+      expect(await receivedFile.length(), equals(3000000));
+
+      final receivedDigest =
+          sha256.convert(await receivedFile.readAsBytes()).toString();
+      expect(receivedDigest, equals(expectedSha256));
+
+      await senderTransport.close();
+      await receiverTransport.close();
+      senderEngine.dispose();
+      receiverEngine.dispose();
+    });
   });
 }

@@ -63,7 +63,9 @@ class PartFileManager {
       }
 
       final rawRanges = metaJson['verifiedRanges'] as List<dynamic>? ?? [];
-      final ranges = rawRanges.map((r) => ChunkRange.fromList(r as List<dynamic>)).toList();
+      final ranges = rawRanges
+          .map((r) => ChunkRange.fromList(r as List<dynamic>))
+          .toList();
       return ChunkRange.merge(ranges);
     } catch (_) {
       return [];
@@ -101,12 +103,12 @@ class PartFileManager {
   }
 
   /// Sparse write of a verified chunk directly at the offset calculated from [chunkIndex]
-  /// 
+  ///
   /// IMPORTANT: This method uses FileMode.write (not append) to enable arbitrary seeking
   /// via setPosition(). This is critical for supporting out-of-order chunk arrival,
   /// which is common when chunks are sub-packetized into 64 KB segments across dual
   /// WebRTC DataChannels or when network conditions cause variable latency.
-  /// 
+  ///
   /// Architectural Requirement (ARCHITECTURE.md Section 7):
   /// - Dual-channel SCTP isolation causes packets to arrive in variable order
   /// - 64 KB wire sub-packetization across control and data channels
@@ -219,7 +221,8 @@ class PartFileManager {
   }
 
   /// Deletes .neresend.part and .neresend.meta sidecars
-  static Future<void> deletePartials(String downloadDir, String sanitizedFilename) async {
+  static Future<void> deletePartials(
+      String downloadDir, String sanitizedFilename) async {
     final partFile = File(getPartPath(downloadDir, sanitizedFilename));
     if (await partFile.exists()) {
       await partFile.delete();

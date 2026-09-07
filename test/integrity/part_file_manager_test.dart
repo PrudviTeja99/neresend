@@ -120,5 +120,66 @@ void main() {
       expect(await partFile.exists(), isFalse);
       expect(await metaFile.exists(), isFalse);
     });
+
+    test(
+        'Completely shuffled out-of-order chunk writes correctly assemble and verify whole file',
+        () async {
+      // 5 chunks of 20,000 bytes = 100,000 bytes total (100 KB)
+      const chunkSize = 20000;
+      const totalChunks = 5;
+      const totalSize = chunkSize * totalChunks;
+
+      final chunks = List.generate(totalChunks, (chunkIdx) {
+        return Uint8List.fromList(
+            List.generate(chunkSize, (i) => (chunkIdx * 37 + i) % 256));
+      });
+
+      final allBytesBuilder = BytesBuilder();
+      for (final c in chunks) {
+        allBytesBuilder.add(c);
+      }
+      final allBytes = allBytesBuilder.toBytes();
+      final wholeFileHash = sha256.convert(allBytes).toString();
+      final chunkHashes =
+          chunks.map((c) => sha256.convert(c).toString()).toList();
+
+      final item = TransferItem(
+        id: 'item_shuffled_1',
+        fileName: 'shuffled_test.dat',
+        size: totalSize,
+        mimeType: 'application/octet-stream',
+        wholeFileSha256: wholeFileHash,
+        chunkSize: chunkSize,
+        totalChunks: totalChunks,
+        chunkHashes: chunkHashes,
+      );
+
+      // Shuffled arrival order: 4 -> 1 -> 3 -> 0 -> 2
+      final arrivalOrder = [4, 1, 3, 0, 2];
+      var currentRanges = <ChunkRange>[];
+
+      for (final chunkIdx in arrivalOrder) {
+        currentRanges = await PartFileManager.writeVerifiedChunk(
+          downloadDir: tempDir.path,
+          item: item,
+          chunkIndex: chunkIdx,
+          chunkBytes: chunks[chunkIdx],
+          currentVerifiedRanges: currentRanges,
+        );
+      }
+
+      // Verify all chunks are merged to a contiguous range [0, 4]
+      expect(currentRanges, equals([const ChunkRange(0, 4)]));
+
+      // Finalize and verify cryptographic SHA-256 integrity
+      final finalFile = await PartFileManager.finalizeFile(
+        downloadDir: tempDir.path,
+        item: item,
+      );
+
+      expect(await finalFile.exists(), isTrue);
+      expect(await finalFile.length(), equals(totalSize));
+      expect(await finalFile.readAsBytes(), equals(allBytes));
+    });
   });
 }
