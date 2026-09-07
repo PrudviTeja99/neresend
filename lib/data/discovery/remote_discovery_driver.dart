@@ -4,67 +4,85 @@ import '../../../domain/contracts/peer_discovery_port.dart';
 import '../../../domain/models/device_identity.dart';
 import '../../../domain/models/discovered_peer.dart';
 import '../../../domain/models/transfer_mode.dart';
-import '../transports/webrtc/signaling_client.dart';
+import '../transports/webrtc/remote_signaling_client.dart';
 
-/// Remote Internet peer discovery driver coordinating 10-minute session PINs and SDP exchange
+/// Result of a successful remote peer matchmaking
+class RemotePairingResult {
+  final String sdpOffer;
+  final DiscoveredPeer hostPeer;
+  final RemoteSessionInfo sessionInfo;
+
+  const RemotePairingResult({
+    required this.sdpOffer,
+    required this.hostPeer,
+    required this.sessionInfo,
+  });
+}
+
+/// Remote Internet peer discovery driver coordinating ephemeral cloud signaling and WebRTC rendezvous
 class RemoteDiscoveryDriver implements PeerDiscoveryPort {
   final DeviceIdentity localIdentity;
-  final SignalingClient signalingClient;
+  final RemoteSignalingClient signalingClient;
 
   final Map<String, DiscoveredPeer> _peers = {};
   final StreamController<List<DiscoveredPeer>> _peerController =
       StreamController<List<DiscoveredPeer>>.broadcast();
 
-  String? _activeHostPin;
+  RemoteSessionInfo? _activeHostSession;
   bool _isDiscovering = false;
 
   RemoteDiscoveryDriver({
     required this.localIdentity,
-    SignalingClient? signalingClient,
-  }) : signalingClient = signalingClient ?? SignalingClient();
+    RemoteSignalingClient? signalingClient,
+  }) : signalingClient = signalingClient ?? RemoteSignalingClient();
 
   @override
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peerController.stream;
 
   List<DiscoveredPeer> get currentPeers => _peers.values.toList();
   bool get isDiscovering => _isDiscovering;
-  String? get activeHostPin => _activeHostPin;
+  RemoteSessionInfo? get activeHostSession => _activeHostSession;
+  String? get activeHostPin => _activeHostSession?.pin;
 
   @override
   Future<void> startDiscovery() async {
     _isDiscovering = true;
   }
 
-  /// Host creates a 10-minute session PIN carrying local SDP offer
-  Future<String> createHostSession({required String sdpOffer}) async {
+  /// Host creates a 5-minute ephemeral session with WebRTC SDP offer
+  Future<RemoteSessionInfo> createHostSession({
+    required String sdpOffer,
+    String? preferredPin,
+  }) async {
     _isDiscovering = true;
-    final pin = await signalingClient.createSession(
+    final sessionInfo = await signalingClient.createSession(
       hostIdentity: localIdentity,
       sdpOffer: sdpOffer,
+      preferredPin: preferredPin,
     );
-    _activeHostPin = pin;
-    return pin;
+    _activeHostSession = sessionInfo;
+    return sessionInfo;
   }
 
-  /// Host waits for a client to join with the PIN, returning the client SDP answer
-  Future<String> awaitClientAnswer({required String pin}) async {
-    final answer = await signalingClient.awaitAnswer(pin: pin);
+  /// Host awaits the client's SDP answer
+  Future<String> awaitClientAnswer({required String sessionId}) async {
+    final answer = await signalingClient.awaitAnswer(sessionId: sessionId);
     return answer;
   }
 
-  /// Client joins an active session using the 6-digit PIN and submits its SDP answer
-  Future<({String sdpOffer, DiscoveredPeer hostPeer})> pairWithPin({
-    required String pin,
+  /// Client joins an active session using 6-digit PIN or structured QR invite URI
+  Future<RemotePairingResult> pairWithPin({
+    required String pinOrUri,
     required String sdpAnswer,
   }) async {
     _isDiscovering = true;
     final sessionData = await signalingClient.joinSession(
-      pin: pin,
+      pinOrUri: pinOrUri,
       clientIdentity: localIdentity,
     );
 
     await signalingClient.submitAnswer(
-      pin: pin,
+      sessionId: sessionData.sessionInfo.sessionId,
       sdpAnswer: sdpAnswer,
     );
 
@@ -82,7 +100,11 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
     );
 
     registerPeer(hostPeer);
-    return (sdpOffer: sessionData.sdpOffer, hostPeer: hostPeer);
+    return RemotePairingResult(
+      sdpOffer: sessionData.sdpOffer,
+      hostPeer: hostPeer,
+      sessionInfo: sessionData.sessionInfo,
+    );
   }
 
   /// Register a discovered or connected remote peer
@@ -105,7 +127,10 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
   @override
   Future<void> stopDiscovery() async {
     _isDiscovering = false;
-    _activeHostPin = null;
+    if (_activeHostSession != null) {
+      signalingClient.closeSession(_activeHostSession!.sessionId);
+      _activeHostSession = null;
+    }
     _peers.clear();
     if (!_peerController.isClosed) {
       _peerController.add(const []);

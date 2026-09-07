@@ -17,6 +17,7 @@ import '../protocol/neresend_protocol_engine.dart';
 import '../transports/direct_link/direct_link_factory.dart';
 import '../transports/local_tls/local_tls_client.dart';
 import '../transports/local_tls/local_tls_server.dart';
+import '../transports/webrtc/remote_signaling_client.dart';
 import '../transports/webrtc/webrtc_connection_manager.dart';
 import 'identity_service.dart';
 import 'power_management_service.dart';
@@ -219,6 +220,91 @@ class TransferOrchestrator {
         isSender: true,
         peerAlias: peer.alias,
         peerFingerprint: peer.fingerprint,
+        timestamp: DateTime.now(),
+        status: 'sending',
+      ),
+    );
+
+    await protocolEngine.startSenderSession(transport, files);
+  }
+
+  /// Host starts an ephemeral WebRTC remote session on the Remote tab
+  Future<RemoteSessionInfo> startRemoteHostSession({String? preferredPin}) async {
+    final hostOfferData = await webrtcManager.createHostOffer();
+    final sessionInfo = await remoteDiscovery.createHostSession(
+      sdpOffer: hostOfferData.sdpOffer,
+      preferredPin: preferredPin,
+    );
+
+    // Asynchronously await client's answer and attach protocol engine
+    unawaited(() async {
+      try {
+        final sdpAnswer = await remoteDiscovery.awaitClientAnswer(
+          sessionId: sessionInfo.sessionId,
+        );
+        final transport = await webrtcManager.finalizeHostTransport(
+          peerConnection: hostOfferData.peerConnection,
+          sdpAnswer: sdpAnswer,
+          controlChannel: hostOfferData.controlChannel,
+          dataChannel: hostOfferData.dataChannel,
+          localFingerprint: localIdentity.fingerprint,
+          remoteFingerprint: 'REMOTE_PEER',
+          sessionPin: sessionInfo.pin,
+        );
+        protocolEngine.listenToTransport(transport);
+      } catch (_) {
+        // Handshake failed or timed out
+      }
+    }());
+
+    return sessionInfo;
+  }
+
+  /// Client connects to a remote host with 6-digit PIN or QR URI and sends files
+  Future<void> sendRemoteFiles({
+    required String pinOrUri,
+    required List<File> files,
+  }) async {
+    if (files.isEmpty) return;
+
+    // 1. Join session and fetch host's SDP offer
+    final pairResult = await remoteDiscovery.pairWithPin(
+      pinOrUri: pinOrUri,
+      sdpAnswer: 'PENDING',
+    );
+
+    // 2. WebRTC create answer
+    final acceptResult = await webrtcManager.acceptHostOffer(
+      sdpOffer: pairResult.sdpOffer,
+    );
+
+    // 3. Submit real SDP answer to signaling client
+    await remoteDiscovery.signalingClient.submitAnswer(
+      sessionId: pairResult.sessionInfo.sessionId,
+      sdpAnswer: acceptResult.sdpAnswer,
+    );
+
+    // 4. Finalize client transport
+    final transport = await acceptResult.finalizeTransport(
+      localFingerprint: localIdentity.fingerprint,
+      remoteFingerprint: pairResult.hostPeer.fingerprint,
+      sessionPin: pairResult.sessionInfo.pin,
+    );
+
+    final totalBytes = files.fold<int>(
+        0, (sum, f) => sum + (f.existsSync() ? f.lengthSync() : 0));
+
+    await storageService.addHistoryEntry(
+      TransferHistoryEntry(
+        id: const Uuid().v4(),
+        transferId: const Uuid().v4(),
+        fileName: files.length == 1
+            ? files.first.path.split('/').last
+            : '${files.length} files',
+        totalBytes: totalBytes,
+        isSender: true,
+        peerAlias: pairResult.hostPeer.alias,
+        peerFingerprint: pairResult.hostPeer.fingerprint,
         timestamp: DateTime.now(),
         status: 'sending',
       ),

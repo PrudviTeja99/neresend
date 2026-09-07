@@ -2,13 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../data/transports/webrtc/signaling_client.dart';
+import '../../data/transports/webrtc/remote_signaling_client.dart';
 import '../state/orchestrator_provider.dart';
+import '../widgets/qr_code_card.dart';
 
-/// Tab 2: Remote P2P screen (Explicit 10-Minute PIN matchmaking & WebRTC transfer)
+/// Tab 2: Remote P2P screen (Explicit 5-Minute PIN/QR matchmaking & WebRTC transfer)
 class RemoteTabScreen extends ConsumerStatefulWidget {
   const RemoteTabScreen({super.key});
 
@@ -18,29 +20,52 @@ class RemoteTabScreen extends ConsumerStatefulWidget {
 
 class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
   final TextEditingController _pinController = TextEditingController();
-  String _generatedPin = '749 312';
-  int _secondsRemaining = 600; // 10 minutes
+  RemoteSessionInfo? _sessionInfo;
+  String _generatedPin = '550 573';
+  int _secondsRemaining = 300; // 5 minutes
   Timer? _countdownTimer;
+  bool _isCreatingSession = false;
   bool _isConnecting = false;
 
   @override
   void initState() {
     super.initState();
-    _refreshPin();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initOrRefreshSession();
+    });
   }
 
-  void _refreshPin() {
-    _generatedPin = SignalingClient.generatePin();
-    _secondsRemaining = 600;
+  Future<void> _initOrRefreshSession() async {
+    final orchestrator = ref.read(transferOrchestratorProvider).asData?.value;
+    if (orchestrator == null) return;
+
+    setState(() => _isCreatingSession = true);
     _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining > 0) {
-        setState(() => _secondsRemaining--);
-      } else {
-        timer.cancel();
+
+    try {
+      final info = await orchestrator.startRemoteHostSession();
+      if (mounted) {
+        setState(() {
+          _sessionInfo = info;
+          _generatedPin = info.pin;
+          _secondsRemaining = info.secondsRemaining;
+          _isCreatingSession = false;
+        });
+
+        _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (_secondsRemaining > 0) {
+            setState(() => _secondsRemaining--);
+          } else {
+            timer.cancel();
+            if (mounted) setState(() {});
+          }
+        });
       }
-    });
-    setState(() {});
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isCreatingSession = false);
+      }
+    }
   }
 
   String _formatTimer(int seconds) {
@@ -50,10 +75,11 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
   }
 
   Future<void> _handleConnectAndSend() async {
-    final rawPin = _pinController.text.trim();
-    final normalized = SignalingClient.normalizePin(rawPin);
+    final rawInput = _pinController.text.trim();
+    final parsed = RemoteSessionInfo.parseInviteUri(rawInput);
+    final normalized = RemoteSignalingClient.normalizePin(parsed.pin);
 
-    if (normalized.length != 6) {
+    if (parsed.sessionId == null && normalized.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid 6-digit PIN')),
       );
@@ -75,17 +101,15 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
     try {
       final orchestrator = ref.read(transferOrchestratorProvider).asData?.value;
       if (orchestrator != null) {
-        // Attempt Remote PIN Match
-        final pairResult = await orchestrator.remoteDiscovery.pairWithPin(
-          pin: rawPin,
-          sdpAnswer: 'v=0\r\no=client_direct_p2p',
+        await orchestrator.sendRemoteFiles(
+          pinOrUri: rawInput,
+          files: files,
         );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Matched remote peer: ${pairResult.hostPeer.alias}! Transfer queued.'),
+            const SnackBar(
+              content: Text('Connected to remote peer! Transfer started.'),
               backgroundColor: AppColors.readyGreen,
             ),
           );
@@ -114,6 +138,9 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final inviteUri = _sessionInfo?.inviteUri ??
+        'neresend://pair?session=init&pin=${_generatedPin.replaceAll(' ', '')}';
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 580),
@@ -122,7 +149,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Card A: Receive via Code
+              // Card A: Receive Remotely (QR + PIN)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -143,18 +170,35 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       const Text(
-                        'Share this 6-digit PIN with the sender to receive files over the internet.',
+                        'Share this 6-digit PIN or scan the QR code to receive files directly over the internet.',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                             color: AppColors.textSecondary, fontSize: 13),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
+
+                      // QR Code Card
+                      if (_isCreatingSession)
+                        const SizedBox(
+                          height: 140,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      else
+                        QrCodeCard(
+                          data: inviteUri,
+                          size: 140,
+                        ),
+
+                      const SizedBox(height: 16),
 
                       // 6-Digit PIN Display
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 14),
+                            horizontal: 24, vertical: 12),
                         decoration: BoxDecoration(
                           color: AppColors.background,
                           borderRadius: BorderRadius.circular(12),
@@ -178,16 +222,38 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                               size: 14, color: AppColors.textMuted),
                           const SizedBox(width: 6),
                           Text(
-                            'Expires in ${_formatTimer(_secondsRemaining)}',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textMuted),
+                            _secondsRemaining > 0
+                                ? 'Expires in ${_formatTimer(_secondsRemaining)}'
+                                : 'PIN Expired',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _secondsRemaining > 0
+                                  ? AppColors.textMuted
+                                  : AppColors.offlineRed,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           TextButton.icon(
                             icon: const Icon(Icons.refresh, size: 14),
                             label: const Text('New PIN',
                                 style: TextStyle(fontSize: 12)),
-                            onPressed: _refreshPin,
+                            onPressed:
+                                _isCreatingSession ? null : _initOrRefreshSession,
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded, size: 16),
+                            tooltip: 'Copy Invite Link',
+                            onPressed: () {
+                              Clipboard.setData(
+                                  ClipboardData(text: _generatedPin));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('PIN copied to clipboard!'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -198,7 +264,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
 
               const SizedBox(height: 20),
 
-              // Card B: Send via Code
+              // Card B: Send to Remote Peer
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -223,19 +289,20 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: _pinController,
-                        keyboardType: TextInputType.number,
-                        maxLength: 7, // allows space "749 312"
+                        keyboardType: TextInputType.text,
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 6,
+                          letterSpacing: 4,
                           color: AppColors.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          hintText: '000 000',
+                          hintText: '550 573 or neresend://...',
                           hintStyle: const TextStyle(
-                              color: AppColors.textMuted, letterSpacing: 6),
+                              color: AppColors.textMuted,
+                              letterSpacing: 2,
+                              fontSize: 14),
                           filled: true,
                           fillColor: AppColors.background,
                           counterText: '',
