@@ -36,25 +36,26 @@ lib/
 
 ## 🔒 Security & Cryptographic Handshake
 
-### Ephemeral TLS 1.3 + Application-Layer Ed25519 Session Binding
+### Ephemeral TLS 1.3 + Peer Identity Verification
 ```
 Sender (Client)                                          Receiver (Server)
       │                                                         │
       │ ── 1. TCP Connect (Port 53318) ───────────────────────► │
       │                                                         │
-      │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Transport Pipe Open)
+      │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Encrypted Transport Pipe)
       │                                                         │
       │ ── 3. [0x00 AUTH_HANDSHAKE: PubKeyA, NonceA, SigA] ──► │
-      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Each signs defaultCertFingerprint + Nonce)
+      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Peers exchange public keys)
       │                                                         │
-      │    [Both peers verify Ed25519 signatures against        │
-      │     advertised public keys discovered via mDNS/UDP]     │
+      │    [Both peers verify public key fingerprints against   │
+      │     advertised identities discovered via mDNS/UDP]      │
       │                                                         │
-      │ ◄─ 5. Mutually Authenticated Secure Pipe Confirmed ────► │
+      │ ◄─ 5. Authenticated Secure Pipe Confirmed ────────────► │
 ```
 
-* **MitM Immunity:** An active attacker intercepting the TCP/TLS connection can present an ephemeral cert, but cannot forge the Ed25519 signature binding the session to the peer's permanent identity key.
-* **100% Platform Portability & Determinism:** Uses canonical `TlsCertificateManager.defaultCertFingerprint` to avoid native X.509 ASN.1 DER parser discrepancies across BoringSSL, OpenSSL, and SChannel.
+* **Transport Confidentiality & PFS:** Ephemeral TLS 1.3 (`SecureSocket`) protects all data on the wire against eavesdropping on untrusted Wi-Fi.
+* **Identity Spoofing Immunity:** The connecting peer's derived fingerprint is strictly validated against the expected discovery fingerprint (`expectedRemoteFingerprint`), preventing impersonation.
+* **User Authorization & Auto-Accept:** The receiver matches the verified sender fingerprint against pinned trusted devices (for automatic acceptance) or displays the interactive confirmation modal ("Accept & Save / Decline").
 
 ---
 

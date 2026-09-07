@@ -345,10 +345,13 @@ For devices located in different cities or networks, DropFlow uses a high-perfor
 │    • Every transfer session generates standard in-memory ephemeral TLS/DTLS │
 │      keys (ECDSA P-256 / X25519) to guarantee Perfect Forward Secrecy (PFS).│
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 3. TIER 3: APPLICATION-LAYER SESSION BINDING (100% MitM Immunity)           │
+│ 3. TIER 3: DISCOVERY FINGERPRINT BINDING & MUTUAL SESSION HANDSHAKE         │
 │    • Immediately upon transport open, peers exchange [0x00 AUTH_HANDSHAKE]. │
-│    • Each peer signs: Sign_Ed25519(Peer_TLS_Fingerprint + Session_Nonce).   │
-│    • Cross-platform, eliminates native X.509 Ed25519 parser incompatibilities│
+│    • Public key is extracted and verified against discovered endpoint       │
+│      fingerprint (`SHA-256(PublicKey)`). Mismatches fail immediately with   │
+│      FINGERPRINT_MISMATCH.                                                  │
+│    • Verified fingerprint is matched against pinned trusted devices for     │
+│      safe auto-accept or prompted to user via interactive modal.            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 4. TIER 4: DATA INTEGRITY & STORAGE SAFETY                                  │
 │    • In-Flight: Dynamic Chunk SHA-256 verified in RAM before disk writes.   │
@@ -357,27 +360,30 @@ For devices located in different cities or networks, DropFlow uses a high-perfor
 │      user-selected download directory.                                      │
 │    • Storage Space Pre-Check: StatFs validation before accepting manifests. │
 └─────────────────────────────────────────────────────────────────────────────┘
-### Canonical TLS Certificate Fingerprint Binding
-To ensure absolute cryptographic interoperability across heterogeneous OS runtimes (Android BoringSSL, Linux OpenSSL, Windows SChannel), `LocalTlsClient` and `LocalTlsServer` bind the mutual `AUTH_HANDSHAKE` to a deterministic canonical certificate fingerprint (`TlsCertificateManager.defaultCertFingerprint`).
+```
+
+### Cross-Platform Peer Authentication & Transport Security
+NeReSend follows the battle-tested local network security model (similar to LocalSend):
 
 ```
 Sender (Client)                                          Receiver (Server)
       │                                                         │
       │ ── 1. TCP Connect (Port 53318) ───────────────────────► │
       │                                                         │
-      │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Transport Pipe Open)
+      │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Encrypted Transport Pipe)
       │                                                         │
       │ ── 3. [0x00 AUTH_HANDSHAKE: PubKeyA, NonceA, SigA] ──► │
-      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Each signs defaultCertFingerprint + Nonce)
+      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Peers exchange public keys)
       │                                                         │
-      │    [Both peers verify Ed25519 signatures against        │
-      │     advertised public keys discovered via mDNS/UDP]     │
+      │    [Both peers verify public key fingerprints against   │
+      │     advertised identities discovered via mDNS/UDP]      │
       │                                                         │
-      │ ◄─ 5. Mutually Authenticated Secure Pipe Confirmed ────► │
+      │ ◄─ 5. Authenticated Secure Pipe Confirmed ────────────► │
 ```
 
-* **MitM Immunity:** An active attacker intercepting the TCP/TLS connection cannot forge the Ed25519 signature binding the session nonce to the peer's permanent identity key.
-* **Cross-Platform Determinism:** Using the deterministic canonical certificate fingerprint prevents dynamic ASN.1 DER certificate serialization differences between platform TLS implementations (e.g. Android BoringSSL vs. Linux OpenSSL) from causing signature verification mismatches (`INVALID_SIGNATURE`).
+* **Transport Confidentiality & PFS:** Ephemeral TLS 1.3 (`SecureSocket`) protects all data on the wire against eavesdropping on untrusted Wi-Fi.
+* **Identity Spoofing Immunity:** The connecting peer's derived fingerprint is strictly validated against the expected discovery fingerprint (`expectedRemoteFingerprint`), preventing impersonation.
+* **User Authorization & Auto-Accept:** The receiver matches the verified sender fingerprint against pinned trusted devices (for automatic acceptance) or displays the interactive confirmation modal ("Accept & Save / Decline").
 
 | Security Aspect | Driver 1 (LAN) | Driver 2 (Direct Hotspot) | Driver 3 (Remote WebRTC) |
 | :--- | :--- | :--- | :--- |
