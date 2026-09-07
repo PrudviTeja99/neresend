@@ -164,7 +164,12 @@ Remote
                      └── UDP
 ```
 
-* **10-Minute Pairing Window:** The 6-digit PIN expires in 10 minutes if unused. Once paired, the transfer session has **no time limit**.
+* **5-Minute Pairing Window:** The 6-digit PIN and dynamic QR code expire after 5 minutes (`Expires in 05:00`) if unused. Senders can tap `[ New PIN ]` to sequentially allocate a new session. Once paired, the transfer session has **no time limit**.
+* **1-Tap QR Scanner Flow (`QrScannerDialog`):**
+  * Senders tap the **`[ 📷 Scan QR ]`** icon inside the Remote PIN input field.
+  * **Live Viewfinder (Mobile / macOS):** Launches an instant camera preview with torch/flash toggle, camera switcher, and scan viewfinder cutout.
+  * **Scan Image Fallback:** Senders can tap `[ Scan Image ]` to select a saved screenshot or photo from their device gallery/file manager.
+  * **Desktop Paste Fallback:** Desktop users without camera hardware tap `[ Paste ]` to populate clipboard content immediately.
 * **3-Strike Auto-Destruction:** 3 failed connection attempts invalidate the code immediately.
 * **SAS Verification:** During transfer approval, both screens display a 3-emoji verification code (`🌟 🚀 🎸`) to guarantee against man-in-the-middle attacks.
 

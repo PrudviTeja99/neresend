@@ -199,7 +199,7 @@ FileSharing/
 * [ ] Implement `TransferOrchestrator` with local failover (LAN $\rightarrow$ Direct Hotspot), simultaneous open tie-breaking, and storage space validation.
 * [ ] Build the **Docked Mini-Player Bar** and expanded progress dashboard with live MB/s, ETA, and cancellation.
 * [ ] Implement `NearbyScreen` radar animations and traffic-light readiness state machine (`🟢/🟡/🔴`).
-* [ ] Implement `RemoteScreen` 10-minute PIN generation/pairing and QR code sheet.
+* [ ] Implement `RemoteTabScreen` with reactive Riverpod lifecycle, 5-minute PIN generation/pairing, dynamic QR code card (`QrCodeCard`), and cross-platform QR camera/image scanner modal (`QrScannerDialog`).
 * [ ] Acquire power wake locks (`PowerManagementService`) to keep Wi-Fi and CPU active during background transfers.
 * [ ] Multiplatform packaging and cross-platform verification matrix.
 

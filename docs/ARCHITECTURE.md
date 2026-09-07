@@ -362,6 +362,13 @@ For devices located in different cities or networks across the internet, NeReSen
     ```
   * Mobile senders scan the QR code for instant 1-tap connection with 0 typing, while the 6-digit PIN serves as a convenient manual entry fallback.
 
+* **Cross-Platform QR Scanner Architecture (`QrScannerDialog`):**
+  * **Live Camera Viewfinder (Mobile / macOS):** Utilizes `mobile_scanner` with real-time barcode recognition, torch/flashlight toggle, and front/back camera switching.
+  * **Static Image QR Analysis (`analyzeImage`):** Senders can pick an image file or screenshot via `FilePicker` to extract pairing metadata directly from images without requiring camera hardware.
+  * **Clipboard Auto-Paste Fallback (Desktop Linux / Windows):** Provides 1-tap clipboard paste on environments where camera drivers or permissions are unavailable.
+  * **Universal Parser (`RemoteSessionInfo.parseInviteUri`):** Accepts structured URIs (`neresend://pair?...`), raw 6-digit PIN strings (`550 573` or `550573`), or session tokens interchangeably.
+  * **Permissive Manifest Integration:** Configured with `<uses-permission android:name="android.permission.CAMERA" />` and `android:required="false"` camera features, allowing full installation on camera-less Android devices (tablets/emulators/STBs).
+
 ### C. NAT Traversal & TURN Fallback Guarantee
 1. **Application-Level Stream Isolation (RFC 8831):** Separates `'control'` (SCTP Stream 0) and `'data'` (SCTP Stream 1) over a single DTLS association.
 2. **Backpressure Flow Control:** The `'data'` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), keeping RAM usage under **15 MB**.

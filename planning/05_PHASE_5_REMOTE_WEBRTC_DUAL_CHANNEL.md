@@ -41,7 +41,12 @@ lib/
 │           ├── webrtc_backpressure_streamer.dart # BufferedAmount watcher throttle loop
 │           ├── webrtc_chunk_reassembler.dart # Sub-packet reassembly & integrity verifier
 │           └── sas_generator.dart        # Derives 3-emoji SAS from DTLS public keys
-```
+└── presentation/
+    ├── screens/
+    │   └── remote_tab_screen.dart        # Reactive Remote Tab with 5-minute countdown & QR scan button
+    └── widgets/
+        ├── qr_code_card.dart             # Receiver pairing QR Code renderer
+        └── qr_scanner_dialog.dart        # Cross-platform live camera & image QR code scanner
 
 ---
 
@@ -162,6 +167,7 @@ class WebRtcBackpressureStreamer {
   - Validates provider loading, error, and ready state transitions.
   - Validates countdown timer progression.
   - Validates sequential "New PIN" regeneration and button lockout.
+  - Validates QR code scanner button rendering and integration in Send card.
 - [x] `test/data/sas_generator_test.dart`:
   - Consistent bidirectional 3-emoji generation given identical DTLS fingerprints.
 - [x] `test/data/webrtc_backpressure_test.dart`:

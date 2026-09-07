@@ -30,7 +30,7 @@ It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptog
 │    • Isolated Control Stream guarantees < 20ms cancellation under load.     │
 │    • Direct UDP NAT hole-punching via public Google STUN.                   │
 │    • Asynchronous backpressure loop keeps RAM under 15 MB.                  │
-│    • Zero-Knowledge 10-minute session PINs & QR code pairing.               │
+│    • Zero-Knowledge 5-minute session PINs & 1-tap QR camera/image scanner.  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
