@@ -49,11 +49,3 @@ jobs:
         with:
           name: NeReSend-Android-APK
           path: NeReSend-Android.apk
-
-      - name: Attach to GitHub Release (on tags)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: NeReSend-Android.apk
-          draft: false
-          prerelease: false
