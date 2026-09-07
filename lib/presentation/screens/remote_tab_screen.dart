@@ -10,6 +10,7 @@ import '../../data/services/transfer_orchestrator.dart';
 import '../../data/transports/webrtc/remote_signaling_client.dart';
 import '../state/orchestrator_provider.dart';
 import '../widgets/qr_code_card.dart';
+import '../widgets/qr_scanner_dialog.dart';
 
 /// Tab 2: Remote P2P screen (Explicit 5-Minute PIN/QR matchmaking & WebRTC transfer)
 class RemoteTabScreen extends ConsumerStatefulWidget {
@@ -424,6 +425,22 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
                               filled: true,
                               fillColor: AppColors.background,
                               counterText: '',
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.qr_code_scanner_rounded,
+                                  color: AppColors.speedCyan,
+                                ),
+                                tooltip: 'Scan QR Code',
+                                onPressed: () async {
+                                  final scanned =
+                                      await QrScannerDialog.show(context);
+                                  if (scanned != null && scanned.isNotEmpty) {
+                                    setState(() {
+                                      _pinController.text = scanned;
+                                    });
+                                  }
+                                },
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(

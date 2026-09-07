@@ -142,5 +142,25 @@ void main() {
       expect(find.text('777 882'), findsOneWidget);
       expect(find.textContaining('Expires in 05:00'), findsOneWidget);
     });
+
+    testWidgets('Renders QR code scanner button in Send to Remote Peer card',
+        (tester) async {
+      final fakeOrchestrator = FakeTransferOrchestrator();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            transferOrchestratorProvider
+                .overrideWith((ref) => Future.value(fakeOrchestrator)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: RemoteTabScreen()),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.qr_code_scanner_rounded), findsOneWidget);
+    });
   });
 }
