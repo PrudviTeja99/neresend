@@ -28,7 +28,8 @@ class UdpDiscoveryBeacon {
   });
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
-  List<DiscoveredPeer> get currentPeers => _peers.values.map((e) => e.peer).toList();
+  List<DiscoveredPeer> get currentPeers =>
+      _peers.values.map((e) => e.peer).toList();
   bool get isRunning => _socket != null;
 
   /// Start listening and periodic beacon broadcasting
@@ -40,7 +41,7 @@ class UdpDiscoveryBeacon {
         InternetAddress.anyIPv4,
         listeningPort,
         reuseAddress: true,
-        reusePort: true,
+        reusePort: !Platform.isWindows,
       );
 
       _socket!.broadcastEnabled = true;
@@ -48,7 +49,8 @@ class UdpDiscoveryBeacon {
 
       // Join standard DropFlow multicast group
       try {
-        _socket!.joinMulticast(InternetAddress(AppConstants.neReSendUdpMulticast));
+        _socket!
+            .joinMulticast(InternetAddress(AppConstants.neReSendUdpMulticast));
       } catch (_) {
         // Multicast join might not be supported on all interfaces; broadcast fallback works
       }
@@ -90,7 +92,8 @@ class UdpDiscoveryBeacon {
       final fingerprint = json['fingerprint'] as String;
 
       // Ignore own broadcasts
-      if (deviceId == localIdentity.deviceId || fingerprint == localIdentity.fingerprint) {
+      if (deviceId == localIdentity.deviceId ||
+          fingerprint == localIdentity.fingerprint) {
         return;
       }
 
