@@ -7,178 +7,59 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name (e.g. v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+        description: 'Tag name (e.g. v1.0.3)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
 
 jobs:
   # ==========================================
-  # 1. Android Build (APK)
+  # 1. Call Reusable Android Build
   # ==========================================
   build-android:
-    name: Build Android APK
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Run Tests
-        run: flutter test
-
-      - name: Build Android Release APK
-        run: flutter build apk --release
-
-      - name: Stage Artifact
-        run: cp build/app/outputs/flutter-apk/app-release.apk NeReSend-Android.apk
-
-      - name: Upload Android Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-android
-          path: NeReSend-Android.apk
+    name: Android Build Workflow
+    uses: ./.github/workflows/android.yml
 
   # ==========================================
-  # 2. Linux Build (AppImage & Tarball)
+  # 2. Call Reusable Linux Build
   # ==========================================
   build-linux:
-    name: Build Linux AppImage & Tarball
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Install Linux Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            cmake \
-            ninja-build \
-            pkg-config \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            libfuse2 \
-            wget \
-            file
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Run Tests
-        run: flutter test
-
-      - name: Build Linux Release Bundle
-        run: flutter build linux --release
-
-      - name: Package AppImage & Tarball
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/lib
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-
-          # Copy compiled flutter bundle
-          cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
-          
-          # Create Desktop file
-          cat << 'DESKTOP' > AppDir/neresend.desktop
-          [Desktop Entry]
-          Name=NeReSend
-          Comment=High-performance zero-cloud P2P file sharing
-          Exec=neresend
-          Icon=neresend
-          Terminal=false
-          Type=Application
-          Categories=Network;FileTransfer;Utility;
-          DESKTOP
-
-          # Icon setup
-          if [ -f "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
-            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/neresend.png
-            cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png AppDir/usr/share/icons/hicolor/256x256/apps/neresend.png
-          fi
-
-          # Create AppRun script
-          cat << 'APPRUN' > AppDir/AppRun
-          #!/bin/sh
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/bin/lib:${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/neresend" "$@"
-          APPRUN
-          chmod +x AppDir/AppRun
-
-          # Download and execute appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
-          chmod +x appimagetool
-          ./appimagetool --appimage-extract
-          ARCH=x86_64 ./squashfs-root/AppRun AppDir NeReSend-x86_64.AppImage
-
-          # Create tarball bundle
-          tar -czf NeReSend-Linux-x64.tar.gz -C build/linux/x64/release/bundle .
-
-      - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-linux
-          path: |
-            NeReSend-x86_64.AppImage
-            NeReSend-Linux-x64.tar.gz
+    name: Linux Build Workflow
+    uses: ./.github/workflows/linux.yml
 
   # ==========================================
-  # 3. Windows Build (ZIP & EXE)
-  # ==========================================
-  
-
-  # ==========================================
-  # 4. Release Publisher (All Assets Combined)
+  # 3. Publish GitHub Release with Artifacts
   # ==========================================
   publish-release:
     name: Publish GitHub Release
     runs-on: ubuntu-22.04
     needs: [build-android, build-linux]
     steps:
-      - name: Download Android Artifact
+      - name: Download Android APK Artifact
         uses: actions/download-artifact@v4
         with:
-          name: release-android
+          name: NeReSend-Android-APK
           path: release-assets
 
-      - name: Download Linux Artifacts
+      - name: Download Linux AppImage Artifact
         uses: actions/download-artifact@v4
         with:
-          name: release-linux
+          name: NeReSend-Linux-AppImage
+          path: release-assets
+
+      - name: Download Linux Tarball Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: NeReSend-Linux-Tarball
           path: release-assets
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          name: NeReSend ${{ github.event.inputs.tag_name || github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag_name != '' && github.event.inputs.tag_name || github.ref_name }}
+          name: NeReSend ${{ github.event.inputs.tag_name != '' && github.event.inputs.tag_name || github.ref_name }}
           generate_release_notes: true
           files: |
             release-assets/NeReSend-Android.apk
@@ -186,4 +67,3 @@ jobs:
             release-assets/NeReSend-Linux-x64.tar.gz
           draft: false
           prerelease: false
-
