@@ -182,10 +182,12 @@ FileSharing/
 * [ ] Implement role negotiation and dynamic host IP exchange (`NetworkInterface.list()`) over encrypted BLE.
 * [ ] Connect the resulting Direct Link socket directly to `LocalTlsTransport`.
 
-### Phase 5: Driver 3 — Remote WebRTC P2P Engine (RFC 8831 Dual DataChannels)
-* [ ] Implement `RemoteDiscoveryDriver` & `SignalingClient` WebSocket client for 10-minute session PIN matching and SDP swapping.
-* [ ] Configure WebRTC `RTCPeerConnection` with Google STUN servers (`stun.l.google.com:19302`) and TURN relay fallback.
-* [ ] Implement `WebRtcTransport` implementing `DropFlowTransport` over RFC 8831 Dual DataChannels:
+### Phase 5: Driver 3 — Remote WebRTC P2P Engine & Cloud Signaling Bridge
+* [ ] Implement `RemoteSignalingClient` WebSocket adapter for ephemeral cloud signaling (PIN/Token rendezvous & SDP/ICE candidate routing).
+* [ ] Implement human-friendly rendezvous model: 6-digit PIN pointer, 128-bit session tokens, 5-minute single-use session countdown.
+* [ ] Implement structured QR Code pairing (`neresend://pair?session=<id>&token=<token>&pin=<code>`) for instant 1-tap mobile pairing.
+* [ ] Configure WebRTC `RTCPeerConnection` with Google STUN servers (`stun.l.google.com:19302`) and TURN relay fallback for strict symmetric NATs.
+* [ ] Implement `WebRtcTransport` implementing `NeReSendTransport` over RFC 8831 Dual DataChannels:
   * `'control'` channel: Priority commands (`CANCEL`, `PAUSE`, `MANIFEST`, SAS emojis).
   * `'data'` channel: Bulk binary payload with $\le 64\text{ KB}$ sub-packetization and `bufferedAmountLowThreshold` (1 MB) backpressure.
 * [ ] Implement 3-strike rate-limiting and SAS emoji verification (`🌟 🚀 🎸`).

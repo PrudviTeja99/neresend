@@ -304,30 +304,75 @@ DirectLinkAdapter (Abstract Port / Interface)
 
 ---
 
-## 7. Remote Internet P2P Architecture: Dual-Channel SCTP Isolation (RFC 8831)
+## 7. Remote Internet P2P Architecture: Dual-Channel SCTP Isolation (RFC 8831) & Cloud Signaling Bridge
 
-For devices located in different cities or networks, DropFlow uses a high-performance **WebRTC Dual DataChannel Architecture** governed by **RFC 8831**. Both channels share a single UDP/DTLS association while running on independent SCTP stream IDs:
+For devices located in different cities or networks across the internet, NeReSend uses a high-performance **WebRTC Dual DataChannel Architecture** governed by **RFC 8831** coupled with an ephemeral **Cloud Signaling Rendezvous Bridge**:
 
 ```
-                      SINGLE WEBRTC PEER CONNECTION (DTLS / UDP)
-                                           │
-          ┌────────────────────────────────┴────────────────────────────────┐
-          ▼                                                                 ▼
-┌─────────────────────────────────┐                       ┌─────────────────────────────────┐
-│ Control Channel (SCTP Stream 0) │                       │ Data Channel (SCTP Stream 1)    │
-│  • Label: 'control'             │                       │  • Label: 'data'                │
-│  • Ordered + Reliable           │                       │  • Ordered + Reliable           │
-│  • Manifest, Accept, Decline    │                       │  • 1–4 MB Dynamic Binary Chunks │
-│  • Instant PAUSE / CANCEL / SAS │                       │  • Backpressure Throttle Loop   │
-└─────────────────────────────────┘                       └─────────────────────────────────┘
+                  INTERNET (Signaling Phase Only)
+                                 │
+                      ┌──────────▼──────────┐
+                      │  Signaling Service  │
+                      │  (WSS / Ephemeral)  │
+                      │  PIN → SDP/ICE      │
+                      │  Offer ↔ Answer     │
+                      └───────┬───────┬─────┘
+                              │       │
+                          signaling signaling
+                              │       │
+                      ┌───────▼──┐ ┌──▼────────┐
+                      │ Device A │ │ Device B  │
+                      │ Receiver │ │ Sender    │
+                      └───────┬──┘ └──┬────────┘
+                              │       │
+                              ▼       ▼
+                      ┌───────────────────────┐
+                      │    WebRTC ICE / STUN  │
+                      └───────────┬───────────┘
+                                  │
+                          Can connect directly?
+                             /         \
+                           YES          NO
+                            │            │
+                            ▼            ▼
+                       Direct P2P    TURN Relay
+                            │            │
+                            └─────┬──────┘
+                                  ▼
+                    RFC 8831 Dual DataChannels
+                     (DTLS / SCTP over UDP)
+                                  │
+                          Direct P2P Files
 ```
 
-### Why Dual-Channel SCTP Separation is Superior:
-1. **Application-Level Stream Isolation:** Separating control and bulk data onto independent SCTP streams (RFC 8831) prevents application-level ordering and retransmission delays on the bulk data stream from delaying urgent control messages (such as `CANCEL`, `PAUSE`, or SAS emoji verification), while both streams multiplex across the shared underlying WebRTC DTLS/UDP transport.
-2. **Backpressure Flow Control:** The `data` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), ensuring native C++ buffers stay drained and keeping RAM usage under **15 MB**.
-3. **64 KB Wire Sub-Packetization:** `libwebrtc` native DataChannels enforce message-size boundaries. The `WebRtcTransport` automatically sub-packetizes 1–4 MB dynamic chunks into $\le 64\text{ KB}$ wire frames (`[4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Bytes]`), reassembling them in memory before hash verification.
-4. **Zero Extra Overhead:** Both DataChannels multiplex across the exact same underlying UDP socket and DTLS encryption context.
-5. **ICE Candidate Pair Resolution:** The WebRTC ICE agent prioritizes direct host and STUN server-reflexive candidate pairs. If ICE cannot establish a viable direct candidate pair (due to dual symmetric NATs, carrier-grade NAT restrictions, or enterprise firewall UDP filtering), it falls back to a TURN relay.
+### A. The Critical Architectural Distinction: Signaling Relay $\neq$ Cloud File Storage
+* **Connection Establishment Only:** The signaling bridge *only* handles temporary routing of the initial $\approx 1\text{ KB}$ SDP handshake and ICE candidate messages (`create`, `join`, `offer`, `answer`, `candidate`, `close`).
+* **Zero Payload in Cloud:** No file data, chunk payloads, or persistent personal metadata ever passes through or touches the signaling server.
+* **Product Promise:** **"Files stream directly device-to-device with end-to-end encryption."**
+
+### B. Human-Friendly Rendezvous & Token Security Model
+* **PIN as Rendezvous Pointer, Not the Secret:** A 6-digit PIN (`550 573`) serves strictly as a human-friendly lookup pointer to a cryptographically strong 128-bit `sessionId` and short-lived `authToken`.
+* **Single-Use Ephemeral Lifecycle:**
+  * Receiver taps **"Receive Remotely"** $\rightarrow$ generates a session with a 5-minute countdown (`Expires in 4:52`).
+  * Once pairing succeeds and the DataChannels open, the session is consumed and purged from the signaling broker immediately (`DELETE /session`).
+* **Structured QR Code Invitation (`neresend://pair?...`):**
+  * The receiver presents a dynamic QR code encoding:
+    ```text
+    neresend://pair?session=<sessionId>&token=<token>&pin=550573
+    ```
+  * Mobile senders scan the QR code for instant 1-tap connection with 0 typing, while the 6-digit PIN serves as a convenient manual entry fallback.
+
+### C. NAT Traversal & TURN Fallback Guarantee
+1. **Application-Level Stream Isolation (RFC 8831):** Separates `'control'` (SCTP Stream 0) and `'data'` (SCTP Stream 1) over a single DTLS association.
+2. **Backpressure Flow Control:** The `'data'` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), keeping RAM usage under **15 MB**.
+3. **64 KB Wire Sub-Packetization:** `WebRtcTransport` sub-packetizes 1–4 MB dynamic chunks into $\le 64\text{ KB}$ wire frames (`[4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Bytes]`), reassembled in memory by `WebRtcChunkReassembler`.
+4. **ICE / STUN / TURN Resolution:**
+   * Prioritizes direct host and STUN server-reflexive candidate pairs ($>85\%$ of residential connections).
+   * Automatically falls back to TURN relaying when restrictive symmetric NATs or corporate/university firewalls prevent direct UDP hole-punching.
+5. **Transparent UX:** The user interface abstracts all network negotiation into smooth, friendly states:
+   ```text
+   Idle ──► Connecting… ──► ✓ Connected (Ready to send files)
+   ```
 
 ---
 

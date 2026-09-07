@@ -6,15 +6,21 @@ This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataCha
 
 ## 🎯 Phase Goals & Objectives
 
-1. Implement **RemoteDiscoveryDriver** and the lightweight **SignalingClient** for 10-minute session PIN matching (`749 312`) and SDP/ICE candidate exchange.
-2. Implement **3-Strike Rate Limiting** on PIN matching to prevent brute-force attacks.
-3. Configure `flutter_webrtc` `RTCPeerConnection` with public STUN servers (`stun.l.google.com:19302`) and TURN relay fallback if direct candidate pairs fail.
-4. Implement **RFC 8831 Dual DataChannels**:
+1. Implement **Cloud Signaling Bridge** via `RemoteSignalingClient` over secure WebSockets (`wss://`) for ephemeral session rendezvous (exchanging $\approx 1\text{ KB}$ SDP offers/answers & ICE candidates).
+2. Implement **Human-Friendly PIN + Token Security Model**:
+   - 6-digit human PIN (`550 573`) acts as a lookup pointer to a 128-bit `sessionId` and short-lived `authToken`.
+   - 5-minute single-use session countdown timer (`Expires in 4:52`).
+   - Single-use consumption: session is automatically deleted from the signaling broker upon DataChannel establishment.
+3. Implement **Structured QR Code Pairing**:
+   - Receiver generates QR code containing `neresend://pair?session=<id>&token=<token>&pin=<code>`.
+   - Sender scans QR for instant 1-tap connection with zero manual typing.
+4. Configure `flutter_webrtc` `RTCPeerConnection` with public STUN servers (`stun.l.google.com:19302`) and **TURN relay fallback** to guarantee connectivity across strict symmetric NATs and enterprise/carrier firewalls.
+5. Implement **RFC 8831 Dual DataChannels**:
    - `'control'` channel: Priority stream for manifests, SAS verification, and instant $< 20\text{ ms}$ pause/cancel commands.
    - `'data'` channel: Bulk binary data stream with dynamic chunks (1–4 MB).
-5. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
-6. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived from DTLS fingerprints.
-7. Wrap in `DropFlowTransport` (`WebRtcTransport`) to power `DropFlowProtocolEngine`.
+6. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
+7. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived from DTLS fingerprints.
+8. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
 
 ---
 
@@ -24,14 +30,56 @@ This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataCha
 lib/
 ├── data/
 │   ├── discovery/
-│   │   └── remote_discovery_driver.dart  # Implements PeerDiscoveryPort via 10-min PIN lookup
+│   │   └── remote_discovery_driver.dart  # Coordinates ephemeral session creation & PIN lookup
 │   └── transports/
 │       └── webrtc/
-│           ├── webrtc_transport.dart     # Implements DropFlowTransport over Dual RTCDataChannels
-│           ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle & ICE candidate gatherer
-│           ├── signaling_client.dart     # WebSocket client for 6-digit PIN SDP swap
+│           ├── webrtc_transport.dart     # Implements NeReSendTransport over Dual RTCDataChannels
+│           ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle, STUN/TURN & ICE gatherer
+│           ├── remote_signaling_client.dart # WebSocket client for cloud signaling broker rendezvous
 │           ├── webrtc_backpressure_streamer.dart # BufferedAmount watcher throttle loop
+│           ├── webrtc_chunk_reassembler.dart # Sub-packet reassembly & integrity verifier
 │           └── sas_generator.dart        # Derives 3-emoji SAS from DTLS public keys
+```
+
+---
+
+## ☁️ Cloud Signaling Rendezvous Architecture
+
+```text
+                  INTERNET (Signaling Phase Only)
+                                 │
+                      ┌──────────▼──────────┐
+                      │  Signaling Service  │
+                      │  (WSS / Ephemeral)  │
+                      │  PIN → SDP/ICE      │
+                      │  Offer ↔ Answer     │
+                      └───────┬───────┬─────┘
+                              │       │
+                          signaling signaling
+                              │       │
+                      ┌───────▼──┐ ┌──▼────────┐
+                      │ Device A │ │ Device B  │
+                      │ Receiver │ │ Sender    │
+                      └───────┬──┘ └──┬────────┘
+                              │       │
+                              ▼       ▼
+                      ┌───────────────────────┐
+                      │    WebRTC ICE / STUN  │
+                      └───────────┬───────────┘
+                                  │
+                          Can connect directly?
+                             /         \
+                           YES          NO
+                            │            │
+                            ▼            ▼
+                       Direct P2P    TURN Relay
+                            │            │
+                            └─────┬──────┘
+                                  ▼
+                    RFC 8831 Dual DataChannels
+                     (DTLS / SCTP over UDP)
+                                  │
+                          Direct P2P Files
 ```
 
 ---
