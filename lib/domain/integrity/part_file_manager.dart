@@ -101,6 +101,16 @@ class PartFileManager {
   }
 
   /// Sparse write of a verified chunk directly at the offset calculated from [chunkIndex]
+  /// 
+  /// IMPORTANT: This method uses FileMode.write (not append) to enable arbitrary seeking
+  /// via setPosition(). This is critical for supporting out-of-order chunk arrival,
+  /// which is common when chunks are sub-packetized into 64 KB segments across dual
+  /// WebRTC DataChannels or when network conditions cause variable latency.
+  /// 
+  /// Architectural Requirement (ARCHITECTURE.md Section 7):
+  /// - Dual-channel SCTP isolation causes packets to arrive in variable order
+  /// - 64 KB wire sub-packetization across control and data channels
+  /// - RandomAccessFile must support true seeking, not append-only mode
   static Future<List<ChunkRange>> writeVerifiedChunk({
     required String downloadDir,
     required TransferItem item,
@@ -116,8 +126,10 @@ class PartFileManager {
     }
 
     // Sparse random-access write at chunk offset
+    // Uses FileMode.write to enable setPosition() for out-of-order chunk arrival.
+    // FileMode.append would ignore setPosition() and force writes to EOF, corrupting file structure.
     final offset = chunkIndex * item.chunkSize;
-    final raf = await partFile.open(mode: FileMode.append);
+    final raf = await partFile.open(mode: FileMode.write);
     try {
       await raf.setPosition(offset);
       await raf.writeFrom(chunkBytes);
