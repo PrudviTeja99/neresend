@@ -1,7 +1,7 @@
 name: neresend
 description: "NeReSend: A modern, privacy-first, cross-platform P2P file sharing application."
 publish_to: 'none'
-version: 1.0.11+15
+version: 1.0.11+16
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

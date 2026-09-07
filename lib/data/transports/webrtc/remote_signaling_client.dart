@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import '../../../core/constants/app_constants.dart';
@@ -74,10 +76,14 @@ class _SignalingRecord {
 
 /// Cloud signaling client for ephemeral WebRTC connection bootstrap (SDP & ICE swap)
 class RemoteSignalingClient {
+  static const String defaultSignalingBaseUrl = 'https://ntfy.sh';
+
   final String? signalingServerUrl;
   final Map<String, _SignalingRecord> _localSessions = {};
   final Map<String, String> _pinToSessionId = {};
   Timer? _cleanupTimer;
+  final HttpClient _httpClient = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 5);
 
   RemoteSignalingClient({this.signalingServerUrl}) {
     _cleanupTimer = Timer.periodic(
@@ -85,6 +91,11 @@ class RemoteSignalingClient {
       (_) => _cleanupExpiredSessions(),
     );
   }
+
+  String get _baseUrl =>
+      (signalingServerUrl != null && signalingServerUrl!.isNotEmpty)
+          ? signalingServerUrl!
+          : defaultSignalingBaseUrl;
 
   /// Generate a random 128-bit hex session identifier
   static String generateSessionId() {
@@ -111,6 +122,50 @@ class RemoteSignalingClient {
   /// Normalize a PIN by stripping whitespace
   static String normalizePin(String pin) {
     return pin.replaceAll(RegExp(r'\s+'), '').trim();
+  }
+
+  Future<void> _publishToRelay(String topic, Map<String, dynamic> data) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/$topic');
+      final request = await _httpClient.postUrl(uri);
+      request.headers.set('Content-Type', 'application/json');
+      request.write(jsonEncode(data));
+      final response =
+          await request.close().timeout(const Duration(seconds: 4));
+      await response.drain();
+    } catch (_) {
+      // Best-effort network relay
+    }
+  }
+
+  Future<Map<String, dynamic>?> _fetchLatestFromRelay(String topic) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/$topic/json?poll=1');
+      final request = await _httpClient.getUrl(uri);
+      final response =
+          await request.close().timeout(const Duration(seconds: 4));
+      if (response.statusCode != 200) return null;
+
+      final body = await response.transform(utf8.decoder).join();
+      final lines = body.split('\n');
+      Map<String, dynamic>? latestPayload;
+
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        try {
+          final event = jsonDecode(trimmed) as Map<String, dynamic>;
+          if (event['event'] == 'message' && event['message'] != null) {
+            final rawMessage = event['message'] as String;
+            final payload = jsonDecode(rawMessage) as Map<String, dynamic>;
+            latestPayload = payload;
+          }
+        } catch (_) {}
+      }
+      return latestPayload;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Receiver creates a remote hosting session
@@ -147,6 +202,18 @@ class RemoteSignalingClient {
     _localSessions[sessionId] = record;
     _pinToSessionId[normalizedPin] = sessionId;
 
+    // Publish offer to public relay asynchronously so sender on another device can discover it
+    unawaited(_publishToRelay('neresend-pin-$normalizedPin', {
+      'type': 'OFFER',
+      'sessionId': sessionId,
+      'authToken': authToken,
+      'pin': pin,
+      'inviteUri': inviteUri,
+      'createdAt': info.createdAt.toIso8601String(),
+      'hostIdentity': hostIdentity.toJson(),
+      'sdpOffer': sdpOffer,
+    }));
+
     return info;
   }
 
@@ -166,39 +233,78 @@ class RemoteSignalingClient {
     String? sessionId = parsed.sessionId;
     sessionId ??= _pinToSessionId[normalizedPin];
 
-    if (sessionId == null || !_localSessions.containsKey(sessionId)) {
-      throw const NetworkException(
-        'Invalid or expired 6-digit PIN',
-        code: 'PIN_EXPIRED',
-      );
+    // 1. Check local session cache first
+    if (sessionId != null && _localSessions.containsKey(sessionId)) {
+      final record = _localSessions[sessionId]!;
+      if (!record.info.isExpired) {
+        if (record.failedAttempts >= AppConstants.maxPinFailedAttempts) {
+          _localSessions.remove(sessionId);
+          _pinToSessionId.remove(normalizedPin);
+          throw const NetworkException(
+            'Too many invalid PIN attempts; session destroyed for security.',
+            code: 'PIN_LOCKED',
+          );
+        }
+        record.clientIdentity = clientIdentity;
+        return (
+          sdpOffer: record.sdpOffer,
+          hostIdentity: record.hostIdentity,
+          sessionInfo: record.info,
+        );
+      }
     }
 
-    final record = _localSessions[sessionId]!;
-    if (record.info.isExpired) {
-      _localSessions.remove(sessionId);
-      _pinToSessionId.remove(normalizedPin);
-      throw const NetworkException(
-        'Session has expired',
-        code: 'PIN_EXPIRED',
-      );
+    // 2. Query network signaling relay for remote host session
+    if (normalizedPin.isNotEmpty) {
+      final remoteOffer =
+          await _fetchLatestFromRelay('neresend-pin-$normalizedPin');
+      if (remoteOffer != null &&
+          remoteOffer['sessionId'] != null &&
+          remoteOffer['sdpOffer'] != null) {
+        final rSessionId = remoteOffer['sessionId'] as String;
+        final rAuthToken = remoteOffer['authToken'] as String? ?? '';
+        final rPin = remoteOffer['pin'] as String? ?? normalizedPin;
+        final rInviteUri = remoteOffer['inviteUri'] as String? ?? '';
+        final rCreatedAtStr = remoteOffer['createdAt'] as String?;
+        final rCreatedAt = rCreatedAtStr != null
+            ? DateTime.tryParse(rCreatedAtStr) ?? DateTime.now()
+            : DateTime.now();
+        final rSdpOffer = remoteOffer['sdpOffer'] as String;
+        final rHostIdentityMap =
+            remoteOffer['hostIdentity'] as Map<String, dynamic>? ?? {};
+
+        final rInfo = RemoteSessionInfo(
+          sessionId: rSessionId,
+          authToken: rAuthToken,
+          pin: rPin,
+          inviteUri: rInviteUri,
+          createdAt: rCreatedAt,
+          ttl: const Duration(minutes: 5),
+        );
+
+        if (!rInfo.isExpired) {
+          final rHostIdentity = DeviceIdentity.fromWireJson(rHostIdentityMap);
+          final record = _SignalingRecord(
+            info: rInfo,
+            hostIdentity: rHostIdentity,
+            sdpOffer: rSdpOffer,
+          );
+          record.clientIdentity = clientIdentity;
+          _localSessions[rSessionId] = record;
+          _pinToSessionId[normalizedPin] = rSessionId;
+
+          return (
+            sdpOffer: rSdpOffer,
+            hostIdentity: rHostIdentity,
+            sessionInfo: rInfo,
+          );
+        }
+      }
     }
 
-    // 3-Strike rate limit guard
-    if (record.failedAttempts >= AppConstants.maxPinFailedAttempts) {
-      _localSessions.remove(sessionId);
-      _pinToSessionId.remove(normalizedPin);
-      throw const NetworkException(
-        'Too many invalid PIN attempts; session destroyed for security.',
-        code: 'PIN_LOCKED',
-      );
-    }
-
-    record.clientIdentity = clientIdentity;
-
-    return (
-      sdpOffer: record.sdpOffer,
-      hostIdentity: record.hostIdentity,
-      sessionInfo: record.info,
+    throw const NetworkException(
+      'Invalid or expired 6-digit PIN',
+      code: 'PIN_EXPIRED',
     );
   }
 
@@ -208,15 +314,19 @@ class RemoteSignalingClient {
     required String sdpAnswer,
   }) async {
     final record = _localSessions[sessionId];
-    if (record == null || record.info.isExpired) {
-      throw const NetworkException('Session not found or expired',
-          code: 'PIN_EXPIRED');
+    if (record != null) {
+      record.sdpAnswer = sdpAnswer;
+      if (!record.answerCompleter.isCompleted) {
+        record.answerCompleter.complete(sdpAnswer);
+      }
     }
 
-    record.sdpAnswer = sdpAnswer;
-    if (!record.answerCompleter.isCompleted) {
-      record.answerCompleter.complete(sdpAnswer);
-    }
+    // Publish answer to relay so remote host gets notified
+    await _publishToRelay('neresend-ans-$sessionId', {
+      'type': 'ANSWER',
+      'sessionId': sessionId,
+      'sdpAnswer': sdpAnswer,
+    });
   }
 
   /// Host awaits the client's SDP answer
@@ -230,16 +340,53 @@ class RemoteSignalingClient {
           code: 'PIN_EXPIRED');
     }
 
-    return await record.answerCompleter.future.timeout(
-      timeout,
-      onTimeout: () {
-        closeSession(sessionId);
-        throw const NetworkException(
-          'Waiting for remote peer connection timed out',
-          code: 'PIN_TIMEOUT',
-        );
-      },
-    );
+    if (record.answerCompleter.isCompleted) {
+      return await record.answerCompleter.future;
+    }
+
+    final completer = Completer<String>();
+    Timer? pollTimer;
+    final deadline = DateTime.now().add(timeout);
+
+    pollTimer =
+        Timer.periodic(const Duration(milliseconds: 1200), (timer) async {
+      if (record.answerCompleter.isCompleted) {
+        timer.cancel();
+        if (!completer.isCompleted) {
+          completer.complete(await record.answerCompleter.future);
+        }
+        return;
+      }
+      if (DateTime.now().isAfter(deadline) || record.info.isExpired) {
+        timer.cancel();
+        if (!completer.isCompleted) {
+          completer.completeError(const NetworkException(
+            'Waiting for remote peer connection timed out',
+            code: 'PIN_TIMEOUT',
+          ));
+        }
+        return;
+      }
+
+      final ansData = await _fetchLatestFromRelay('neresend-ans-$sessionId');
+      if (ansData != null && ansData['sdpAnswer'] != null) {
+        final answer = ansData['sdpAnswer'] as String;
+        timer.cancel();
+        record.sdpAnswer = answer;
+        if (!record.answerCompleter.isCompleted) {
+          record.answerCompleter.complete(answer);
+        }
+        if (!completer.isCompleted) {
+          completer.complete(answer);
+        }
+      }
+    });
+
+    try {
+      return await completer.future;
+    } finally {
+      pollTimer.cancel();
+    }
   }
 
   /// Close and purge an active session immediately upon pairing or completion
@@ -280,6 +427,7 @@ class RemoteSignalingClient {
 
   void dispose() {
     _cleanupTimer?.cancel();
+    _httpClient.close(force: true);
     _localSessions.clear();
     _pinToSessionId.clear();
   }

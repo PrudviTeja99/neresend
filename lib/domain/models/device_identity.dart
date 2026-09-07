@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Represents the long-lived cryptographic identity of a DropFlow node
 class DeviceIdentity {
   /// Unique 16-character identifier derived from SHA-256(publicKey)
@@ -37,6 +39,17 @@ class DeviceIdentity {
       publicKeyBase64: json['publicKeyBase64'] as String,
       fingerprint: json['fingerprint'] as String,
       publicKeyBytes: publicKeyBytes,
+    );
+  }
+
+  factory DeviceIdentity.fromWireJson(Map<String, dynamic> json) {
+    final b64 = json['publicKeyBase64'] as String? ?? '';
+    return DeviceIdentity(
+      deviceId: json['deviceId'] as String? ?? 'unknown',
+      alias: json['alias'] as String? ?? 'Remote Peer',
+      publicKeyBase64: b64,
+      fingerprint: json['fingerprint'] as String? ?? '',
+      publicKeyBytes: b64.isNotEmpty ? base64Decode(b64) : <int>[],
     );
   }
 
