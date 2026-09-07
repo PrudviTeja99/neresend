@@ -35,6 +35,14 @@ class WebRtcConnectionManager {
     'sdpSemantics': 'unified-plan',
   };
 
+  static const Map<String, dynamic> dataOnlySdpConstraints = {
+    'mandatory': {
+      'OfferToReceiveAudio': false,
+      'OfferToReceiveVideo': false,
+    },
+    'optional': [],
+  };
+
   final Map<String, dynamic> configuration;
 
   WebRtcConnectionManager({
@@ -56,10 +64,12 @@ class WebRtcConnectionManager {
 
     final dataInit = RTCDataChannelInit()..ordered = true;
     final dataChannel = await pc.createDataChannel('data', dataInit);
-    dataChannel.bufferedAmountLowThreshold =
-        WebRtcBackpressureStreamer.maxBufferedBytes;
+    try {
+      dataChannel.bufferedAmountLowThreshold =
+          WebRtcBackpressureStreamer.maxBufferedBytes;
+    } catch (_) {}
 
-    final offer = await pc.createOffer();
+    final offer = await pc.createOffer(dataOnlySdpConstraints);
     await pc.setLocalDescription(offer);
 
     // Wait for ICE candidate gathering to settle
@@ -127,8 +137,10 @@ class WebRtcConnectionManager {
       if (channel.label == 'control' && !controlCompleter.isCompleted) {
         controlCompleter.complete(channel);
       } else if (channel.label == 'data' && !dataCompleter.isCompleted) {
-        channel.bufferedAmountLowThreshold =
-            WebRtcBackpressureStreamer.maxBufferedBytes;
+        try {
+          channel.bufferedAmountLowThreshold =
+              WebRtcBackpressureStreamer.maxBufferedBytes;
+        } catch (_) {}
         dataCompleter.complete(channel);
       }
     };
@@ -136,7 +148,7 @@ class WebRtcConnectionManager {
     final offerDesc = RTCSessionDescription(sdpOffer, 'offer');
     await pc.setRemoteDescription(offerDesc);
 
-    final answer = await pc.createAnswer();
+    final answer = await pc.createAnswer(dataOnlySdpConstraints);
     await pc.setLocalDescription(answer);
 
     await _waitForIceGatheringComplete(pc);
@@ -226,5 +238,39 @@ class WebRtcConnectionManager {
     }
 
     await Future.wait([waitForOpen(control), waitForOpen(data)]);
+  }
+
+  /// Centralized and idempotent teardown of WebRTC peer connection, data channels, and native callbacks
+  Future<void> disposeConnection({
+    RTCPeerConnection? peerConnection,
+    RTCDataChannel? controlChannel,
+    RTCDataChannel? dataChannel,
+  }) async {
+    try {
+      if (controlChannel != null) {
+        controlChannel.onDataChannelState = null;
+        controlChannel.onMessage = null;
+        await controlChannel.close();
+      }
+    } catch (_) {}
+
+    try {
+      if (dataChannel != null) {
+        dataChannel.onDataChannelState = null;
+        dataChannel.onMessage = null;
+        await dataChannel.close();
+      }
+    } catch (_) {}
+
+    try {
+      if (peerConnection != null) {
+        peerConnection.onDataChannel = null;
+        peerConnection.onIceGatheringState = null;
+        peerConnection.onIceConnectionState = null;
+        peerConnection.onSignalingState = null;
+        await peerConnection.close();
+        await peerConnection.dispose();
+      }
+    } catch (_) {}
   }
 }

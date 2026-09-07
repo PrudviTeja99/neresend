@@ -1,11 +1,66 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:neresend/data/services/transfer_orchestrator.dart';
+import 'package:neresend/data/transports/webrtc/remote_signaling_client.dart';
+import 'package:neresend/domain/models/discovered_peer.dart';
+import 'package:neresend/domain/models/transfer_progress.dart';
 import 'package:neresend/presentation/screens/main_scaffold_screen.dart';
 import 'package:neresend/presentation/state/identity_provider.dart';
+import 'package:neresend/presentation/state/orchestrator_provider.dart';
 import 'package:neresend/presentation/state/readiness_state_provider.dart';
 import 'package:neresend/presentation/widgets/center_device_avatar.dart';
 import 'package:neresend/domain/models/device_identity.dart';
+
+class FakeNavigationOrchestrator implements TransferOrchestrator {
+  final StreamController<TransferProgress> _progressController =
+      StreamController<TransferProgress>.broadcast();
+  final StreamController<List<DiscoveredPeer>> _peersController =
+      StreamController<List<DiscoveredPeer>>.broadcast();
+  final StreamController<IncomingTransferPrompt> _promptController =
+      StreamController<IncomingTransferPrompt>.broadcast();
+
+  @override
+  Stream<TransferProgress> get onProgress => _progressController.stream;
+
+  @override
+  Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
+
+  @override
+  Stream<IncomingTransferPrompt> get onIncomingTransferPrompt =>
+      _promptController.stream;
+
+  @override
+  List<DiscoveredPeer> get currentPeers => const [];
+
+  @override
+  bool get isReady => true;
+
+  @override
+  RemoteSessionInfo? get activeRemoteSession => null;
+
+  @override
+  Future<RemoteSessionInfo> startRemoteHostSession({
+    String? preferredPin,
+    bool forceNew = false,
+  }) async {
+    return RemoteSessionInfo(
+      sessionId: 'test_sess',
+      authToken: 'test_tok',
+      pin: '550 573',
+      inviteUri: 'neresend://pair?session=test_sess&pin=550573',
+      createdAt: DateTime.now(),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  @override
+  Future<void> disposeActiveRemoteHostSession() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   testWidgets(
@@ -19,12 +74,16 @@ void main() {
       publicKeyBytes: [1, 2, 3],
     );
 
+    final fakeOrchestrator = FakeNavigationOrchestrator();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           identityStateProvider
               .overrideWith((ref) => MockIdentityNotifier(mockIdentity)),
           readinessStateProvider.overrideWithValue(ReadinessState.ready),
+          transferOrchestratorProvider
+              .overrideWith((ref) => Future.value(fakeOrchestrator)),
         ],
         child: const MaterialApp(
           home: MainScaffoldScreen(),

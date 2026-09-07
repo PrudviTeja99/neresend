@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/protocol_constants.dart';
@@ -228,15 +229,63 @@ class TransferOrchestrator {
     await protocolEngine.startSenderSession(transport, files);
   }
 
-  /// Host starts an ephemeral WebRTC remote session on the Remote tab
-  Future<RemoteSessionInfo> startRemoteHostSession({String? preferredPin}) async {
+  RemoteSessionInfo? get activeRemoteSession => remoteDiscovery.activeHostSession;
+
+  ({
+    RTCPeerConnection peerConnection,
+    RTCDataChannel controlChannel,
+    RTCDataChannel dataChannel,
+    String sessionId,
+  })? _activeHostConnection;
+
+  /// Idempotently tears down the active remote host WebRTC connection and session
+  Future<void> disposeActiveRemoteHostSession() async {
+    final activeConn = _activeHostConnection;
+    _activeHostConnection = null;
+
+    if (activeConn != null) {
+      await webrtcManager.disposeConnection(
+        peerConnection: activeConn.peerConnection,
+        controlChannel: activeConn.controlChannel,
+        dataChannel: activeConn.dataChannel,
+      );
+      remoteDiscovery.signalingClient.closeSession(activeConn.sessionId);
+    }
+  }
+
+  /// Host starts an ephemeral WebRTC remote session on the Remote tab.
+  /// Strictly tears down any prior session and PeerConnection before creating a new one.
+  Future<RemoteSessionInfo> startRemoteHostSession({
+    String? preferredPin,
+    bool forceNew = false,
+  }) async {
+    if (!forceNew &&
+        remoteDiscovery.activeHostSession != null &&
+        !remoteDiscovery.activeHostSession!.isExpired &&
+        _activeHostConnection != null) {
+      return remoteDiscovery.activeHostSession!;
+    }
+
+    // 1. Strictly tear down old connection and session first
+    await disposeActiveRemoteHostSession();
+
+    // 2. Create fresh host WebRTC offer and channels with data-only constraints
     final hostOfferData = await webrtcManager.createHostOffer();
+
+    // 3. Register session on signaling client
     final sessionInfo = await remoteDiscovery.createHostSession(
       sdpOffer: hostOfferData.sdpOffer,
       preferredPin: preferredPin,
     );
 
-    // Asynchronously await client's answer and attach protocol engine
+    _activeHostConnection = (
+      peerConnection: hostOfferData.peerConnection,
+      controlChannel: hostOfferData.controlChannel,
+      dataChannel: hostOfferData.dataChannel,
+      sessionId: sessionInfo.sessionId,
+    );
+
+    // 4. Asynchronously await client's answer and attach protocol engine
     unawaited(() async {
       try {
         final sdpAnswer = await remoteDiscovery.awaitClientAnswer(
@@ -253,7 +302,8 @@ class TransferOrchestrator {
         );
         protocolEngine.listenToTransport(transport);
       } catch (_) {
-        // Handshake failed or timed out
+        // Handshake failed or timed out -> clean up
+        await disposeActiveRemoteHostSession();
       }
     }());
 
@@ -389,6 +439,7 @@ class TransferOrchestrator {
     await _incomingRequestSub?.cancel();
     await _progressSub?.cancel();
 
+    await disposeActiveRemoteHostSession();
     await lanDiscovery.dispose();
     await bleDiscovery.dispose();
     await remoteDiscovery.dispose();
