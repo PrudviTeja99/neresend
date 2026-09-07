@@ -33,15 +33,17 @@ class _AnimatedRadarCanvasState extends State<AnimatedRadarCanvas>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _RadarPainter(animationProgress: _controller.value),
-          child: child,
-        );
-      },
-      child: widget.child,
+    return SizedBox.expand(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: _RadarPainter(animationProgress: _controller.value),
+            child: child,
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }
@@ -53,6 +55,7 @@ class _RadarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
     final center = Offset(size.width / 2, size.height / 2);
     final maxRadius = math.min(size.width, size.height) * 0.45;
 

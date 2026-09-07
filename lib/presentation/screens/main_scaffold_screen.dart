@@ -115,6 +115,7 @@ class _MainScaffoldScreenState extends ConsumerState<MainScaffoldScreen> {
             Expanded(
               child: IndexedStack(
                 index: activeTab,
+                sizing: StackFit.expand,
                 children: const [
                   NearbyTabScreen(),
                   RemoteTabScreen(),

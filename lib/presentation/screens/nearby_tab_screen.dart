@@ -66,93 +66,122 @@ class NearbyTabScreen extends ConsumerWidget {
     final peersAsync = ref.watch(peerListProvider);
     final readiness = ref.watch(readinessStateProvider);
 
-    return AnimatedRadarCanvas(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final center =
-              Offset(constraints.maxWidth / 2, constraints.maxHeight / 2);
-          final radius =
-              math.min(constraints.maxWidth, constraints.maxHeight) * 0.35;
+    return SizedBox.expand(
+      child: AnimatedRadarCanvas(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final center =
+                Offset(constraints.maxWidth / 2, constraints.maxHeight / 2);
+            final radius =
+                math.min(constraints.maxWidth, constraints.maxHeight) * 0.35;
 
-          final peers = peersAsync.asData?.value ?? [];
+            final peers = peersAsync.asData?.value ?? [];
 
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              // Floating Peer Bubbles positioned radially
-              ...List.generate(peers.length, (index) {
-                final peer = peers[index];
-                final angle =
-                    (2 * math.pi / math.max(peers.length, 1)) * index -
-                        (math.pi / 2);
-                final dx = center.dx + radius * math.cos(angle) - 70;
-                final dy = center.dy + radius * math.sin(angle) - 25;
+            return Stack(
+              fit: StackFit.expand,
+              alignment: Alignment.center,
+              children: [
+                // Floating Peer Bubbles positioned radially
+                ...List.generate(peers.length, (index) {
+                  final peer = peers[index];
+                  final angle =
+                      (2 * math.pi / math.max(peers.length, 1)) * index -
+                          (math.pi / 2);
+                  final dx = center.dx + radius * math.cos(angle) - 70;
+                  final dy = center.dy + radius * math.sin(angle) - 25;
 
-                return Positioned(
-                  left: dx.clamp(16.0, constraints.maxWidth - 160.0),
-                  top: dy.clamp(16.0, constraints.maxHeight - 120.0),
-                  child: PeerBubbleNode(
-                    peer: peer,
-                    onTap: () => _pickAndSendFiles(context, ref, peer),
-                  ),
-                );
-              }),
+                  return Positioned(
+                    left: dx.clamp(
+                        16.0, math.max(16.0, constraints.maxWidth - 160.0)),
+                    top: dy.clamp(
+                        16.0, math.max(16.0, constraints.maxHeight - 120.0)),
+                    child: PeerBubbleNode(
+                      peer: peer,
+                      onTap: () => _pickAndSendFiles(context, ref, peer),
+                    ),
+                  );
+                }),
 
-              // Central Device Avatar
-              identityAsync.when(
-                data: (identity) => CenterDeviceAvatar(
-                  alias: identity.alias,
-                  readinessState: _mapReadiness(readiness),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'Identity Fingerprint: ${identity.fingerprint}'),
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  },
-                ),
-                loading: () =>
-                    const CircularProgressIndicator(color: AppColors.accent),
-                error: (err, _) => Text(
-                  'Error: $err',
-                  style: const TextStyle(color: AppColors.offlineRed),
-                ),
-              ),
-
-              // Bottom Action Button
-              Positioned(
-                bottom: 24,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 22),
-                  label: Text(peers.isEmpty
-                      ? 'Select Peer to Send'
-                      : 'Send Files (${peers.length} Nearby)'),
-                  onPressed: peers.isNotEmpty
-                      ? () => _pickAndSendFiles(context, ref, peers.first)
-                      : () {
+                // Central Device Avatar (offset so 90px circular avatar aligns with radar center)
+                Center(
+                  child: Transform.translate(
+                    offset: const Offset(0, 30),
+                    child: identityAsync.when(
+                      data: (identity) => CenterDeviceAvatar(
+                        alias: identity.alias,
+                        readinessState: _mapReadiness(readiness),
+                        onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
+                            SnackBar(
                               content: Text(
-                                  'Searching for nearby DropFlow devices on local Wi-Fi / BLE...'),
-                              duration: Duration(seconds: 2),
+                                  'Identity Fingerprint: ${identity.fingerprint}'),
+                              duration: const Duration(seconds: 3),
                             ),
                           );
                         },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 28, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      ),
+                      loading: () => const CircularProgressIndicator(
+                          color: AppColors.accent),
+                      error: (err, _) => Text(
+                        'Error: $err',
+                        style: const TextStyle(color: AppColors.offlineRed),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+
+                // Bottom Action Button docked at viewport bottom
+                Positioned(
+                  bottom: 24,
+                  left: 24,
+                  right: 24,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add_rounded, size: 22),
+                          label: Text(
+                            peers.isEmpty
+                                ? 'Select Peer to Send'
+                                : 'Send Files (${peers.length} Nearby)',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: peers.isNotEmpty
+                              ? () =>
+                                  _pickAndSendFiles(context, ref, peers.first)
+                              : () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Searching for nearby NeReSend devices on local Wi-Fi / BLE...'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            elevation: 4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
