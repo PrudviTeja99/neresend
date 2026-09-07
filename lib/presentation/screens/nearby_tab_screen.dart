@@ -23,12 +23,12 @@ class NearbyTabScreen extends ConsumerWidget {
     WidgetRef ref,
     DiscoveredPeer peer,
   ) async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-    if (result == null || result.files.isEmpty) return;
+    final result = await FilePicker.pickFiles();
+    if (result.isEmpty) return;
 
-    final files = result.paths
-        .where((path) => path != null)
-        .map((path) => File(path!))
+    final files = result
+        .where((file) => file.path != null)
+        .map((file) => File(file.path!))
         .toList();
 
     if (files.isEmpty) return;

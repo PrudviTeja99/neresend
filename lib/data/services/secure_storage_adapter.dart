@@ -8,7 +8,7 @@ class SecureStorageAdapter implements SecureStoragePort {
   SecureStorageAdapter({FlutterSecureStorage? storage})
       : _storage = storage ??
             const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              aOptions: AndroidOptions(),
               lOptions: LinuxOptions(),
               wOptions: WindowsOptions(),
             );
@@ -33,4 +33,3 @@ class SecureStorageAdapter implements SecureStoragePort {
     return _storage.readAll();
   }
 }
-

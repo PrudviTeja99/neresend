@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "bpt.studiohq.neresend"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
