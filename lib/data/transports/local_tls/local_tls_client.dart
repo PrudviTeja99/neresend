@@ -30,22 +30,14 @@ class LocalTlsClient {
     LocalTlsTransport? transport;
 
     try {
-      X509Certificate? receivedCert;
-
       rawSocket = await SecureSocket.connect(
         host,
         port,
-        onBadCertificate: (cert) {
-          receivedCert = cert;
-          return true; // Accept ephemeral cert; identity verified via Ed25519 signature
-        },
+        onBadCertificate: (cert) => true, // Accept ephemeral cert; identity verified via Ed25519 signature
         timeout: timeout,
       );
 
-      final cert = rawSocket.peerCertificate ?? receivedCert;
-      final serverCertFingerprint = cert != null
-          ? TlsCertificateManager.calculateCertFingerprint(cert.der)
-          : TlsCertificateManager.defaultCertFingerprint;
+      final serverCertFingerprint = TlsCertificateManager.defaultCertFingerprint;
 
       transport = LocalTlsTransport(socket: rawSocket);
 
