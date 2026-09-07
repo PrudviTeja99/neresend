@@ -357,7 +357,27 @@ For devices located in different cities or networks, DropFlow uses a high-perfor
 │      user-selected download directory.                                      │
 │    • Storage Space Pre-Check: StatFs validation before accepting manifests. │
 └─────────────────────────────────────────────────────────────────────────────┘
+### Canonical TLS Certificate Fingerprint Binding
+To ensure absolute cryptographic interoperability across heterogeneous OS runtimes (Android BoringSSL, Linux OpenSSL, Windows SChannel), `LocalTlsClient` and `LocalTlsServer` bind the mutual `AUTH_HANDSHAKE` to a deterministic canonical certificate fingerprint (`TlsCertificateManager.defaultCertFingerprint`).
+
 ```
+Sender (Client)                                          Receiver (Server)
+      │                                                         │
+      │ ── 1. TCP Connect (Port 53318) ───────────────────────► │
+      │                                                         │
+      │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Transport Pipe Open)
+      │                                                         │
+      │ ── 3. [0x00 AUTH_HANDSHAKE: PubKeyA, NonceA, SigA] ──► │
+      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Each signs defaultCertFingerprint + Nonce)
+      │                                                         │
+      │    [Both peers verify Ed25519 signatures against        │
+      │     advertised public keys discovered via mDNS/UDP]     │
+      │                                                         │
+      │ ◄─ 5. Mutually Authenticated Secure Pipe Confirmed ────► │
+```
+
+* **MitM Immunity:** An active attacker intercepting the TCP/TLS connection cannot forge the Ed25519 signature binding the session nonce to the peer's permanent identity key.
+* **Cross-Platform Determinism:** Using the deterministic canonical certificate fingerprint prevents dynamic ASN.1 DER certificate serialization differences between platform TLS implementations (e.g. Android BoringSSL vs. Linux OpenSSL) from causing signature verification mismatches (`INVALID_SIGNATURE`).
 
 | Security Aspect | Driver 1 (LAN) | Driver 2 (Direct Hotspot) | Driver 3 (Remote WebRTC) |
 | :--- | :--- | :--- | :--- |

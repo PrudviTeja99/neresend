@@ -45,7 +45,7 @@ Sender (Client)                                          Receiver (Server)
       │ ◄─ 2. TLS 1.3 Handshake (Standard Ephemeral ECDSA P256)► │ (PFS Transport Pipe Open)
       │                                                         │
       │ ── 3. [0x00 AUTH_HANDSHAKE: PubKeyA, NonceA, SigA] ──► │
-      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Each signs Peer TLS Cert Fingerprint + Nonce)
+      │ ◄─ 4. [0x00 AUTH_HANDSHAKE: PubKeyB, NonceB, SigB] ───┤ (Each signs defaultCertFingerprint + Nonce)
       │                                                         │
       │    [Both peers verify Ed25519 signatures against        │
       │     advertised public keys discovered via mDNS/UDP]     │
@@ -54,7 +54,7 @@ Sender (Client)                                          Receiver (Server)
 ```
 
 * **MitM Immunity:** An active attacker intercepting the TCP/TLS connection can present an ephemeral cert, but cannot forge the Ed25519 signature binding the session to the peer's permanent identity key.
-* **100% Platform Portability:** Avoids native X.509 Ed25519 parser bugs in platform BoringSSL/SChannel implementations.
+* **100% Platform Portability & Determinism:** Uses canonical `TlsCertificateManager.defaultCertFingerprint` to avoid native X.509 ASN.1 DER parser discrepancies across BoringSSL, OpenSSL, and SChannel.
 
 ---
 
