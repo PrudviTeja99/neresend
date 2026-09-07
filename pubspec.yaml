@@ -20,7 +20,7 @@ dependencies:
   crypto: ^3.0.3
 
   # Networking & WebRTC
-  flutter_webrtc: ^0.11.7
+  flutter_webrtc: ^1.6.1
 
   # Device & File I/O
   file_picker: ^8.0.0
