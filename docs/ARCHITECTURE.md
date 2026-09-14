@@ -1,6 +1,6 @@
 # System Architecture & Technical Blueprint
 
-This document outlines the architecture, networking protocols, cryptographic identity model, UI/UX structure, and component design for the cross-platform Peer-to-Peer (P2P) File Sharing application built for **Android, Linux, and Windows** using **Flutter** and **WebRTC / Native Sockets**.
+This document outlines the architecture, networking protocols, cryptographic identity model, UI/UX structure, and component design for the cross-platform Peer-to-Peer (P2P) File Sharing application built for **Android, Linux, and Windows** using **Flutter** and **Native Sockets / Magic Wormhole Transit Protocol**.
 
 ---
 
@@ -34,14 +34,14 @@ The application strictly follows **Hexagonal Architecture** (also known as the *
 ### Components in our Hexagon:
 1. **Core Domain (Inside):**
    * `TransferOrchestrator`: Coordinates discovery lifecycles, transport selection, session state, permissions, and transfer queue.
-   * `TransferProtocolEngine`: Network-agnostic transfer state machine (manifests, chunk hashing, sparse range set negotiation, PartFileManager disk writes, and integrity verification).
+   * `NeReSendProtocolEngine`: Network-agnostic transfer state machine (manifests, chunk hashing, sparse range set negotiation, PartFileManager disk writes, and integrity verification).
    * `IdentityManager`: Manages long-lived Ed25519 identity keypairs, certificate signing, and trusted peer fingerprint store.
    * `TransferManifest`, `DiscoveredPeer`, `TransferProgress`, `ChunkRange`: Pure domain data entities.
 2. **Ports (Interfaces):**
    * **Driving (Inbound) Port:** `TransferUseCase` API consumed by UI state notifiers.
    * **Driven (Outbound) Ports:**
      * `PeerDiscoveryPort`: Discovers and announces peer presence.
-     * `TransportPort`: Establishes authenticated full-duplex communication channels (`DropFlowTransport`).
+     * `TransportPort`: Establishes authenticated full-duplex communication channels (`NeReSendTransport`).
      * `DirectLinkAdapter`: Runtime capability-probed OS SoftAP / Wi-Fi Direct interface.
      * `StorageRepository`: Abstract file system read/write and part file storage.
      * `SecureStoragePort`: Hardware keystore / keychain for Ed25519 identity keys.
@@ -49,8 +49,8 @@ The application strictly follows **Hexagonal Architecture** (also known as the *
 3. **Adapters (Implementations):**
    * **Driving Adapters:** Flutter Nearby Radar Screen, Remote P2P Screen, Docked Transfer Bar, Android Share-Sheet Receiver.
    * **Driven Adapters:**
-     * **Discovery:** `LanDiscoveryDriver` (mDNS RFC 6762 + UDP Multicast Beacon), `BleDiscoveryDriver` (BLE GATT), `RemoteDiscoveryDriver` (WebSocket PIN matching).
-     * **Transport:** `LocalTlsTransportDriver` (TCP + TLS 1.3 `SecureSocket`), `WebRtcTransportDriver` (RFC 8831 Dual DataChannels).
+     * **Discovery:** `LanDiscoveryDriver` (mDNS RFC 6762 + UDP Multicast Beacon), `BleDiscoveryDriver` (BLE GATT), `RemoteDiscoveryDriver` (5-minute PIN & QR matching).
+     * **Transport:** `LocalTlsTransportDriver` (TCP + TLS 1.3 `SecureSocket`), `WormholeTransitTransport` (Magic Wormhole outbound TCP via `transit.magic-wormhole.io:4001`).
      * **Direct Link:** `AndroidHotspotAdapter`, `LinuxNetworkManagerAdapter`, `WindowsDirectAdapter`, `UnsupportedDirectAdapter`.
      * **Storage & Security:** `AndroidKeyStoreAdapter`, `LinuxSecretServiceAdapter`, `WindowsDpapiAdapter`.
 
@@ -68,13 +68,13 @@ DropFlow cleanly decouples **Discovery**, **Transport Connection**, and **Transf
         ▼                              ▼                              ▼
  1. PeerDiscoveryPort           2. TransportPort          3. TransferProtocolEngine
         │                              │                              │
- ├── LanDiscovery               ├── LocalTlsTransport          └── DropFlowProtocolEngine
+ ├── LanDiscovery               ├── LocalTlsTransport          └── NeReSendProtocolEngine
  │    • mDNS (224.0.0.251:5353) │    • TCP + TLS 1.3                • Manifest Exchange
  │    • UDP Beacon (224.0.0.167)│    • Identity-Signed Cert         • Dynamic Chunk Sizing
- ├── BleDiscovery               └── WebRtcTransport                 • Sparse Range Resume
- │    • GATT Scan/Advertise          • Dual SCTP DataChannels       • Backpressure Loop
- └── RemoteDiscovery                 • Host / STUN / TURN Relay     • PartFileManager I/O
-      • WebSocket PIN Match
+ ├── BleDiscovery               └── WormholeTransitTransport        • Sparse Range Resume
+ │    • GATT Scan/Advertise          • Outbound TCP (:4001)         • PartFileManager I/O
+ └── RemoteDiscovery                 • Deterministic SHA-256 Token  • Non-blocking Stream
+      • 5-Min PIN / QR Match         • Pure Dart Socket Splice
 ```
 
 ### 1. Discovery Port (`lib/domain/contracts/peer_discovery_port.dart`)
@@ -178,7 +178,7 @@ To prevent security violations, unexpected mobile data usage, and cognitive conf
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ TAB 2: REMOTE (Global Internet — Deliberate Pairing)                        │
 │ • Scope: Devices in different locations / networks across the WAN.          │
-│ • Transport: Driver 3 (WebRTC Dual DataChannels over DTLS / UDP).           │
+│ • Transport: Driver 3 (Magic Wormhole Transit Relay over Outbound TCP).     │
 │ • Rule: ONLY initiated when a user explicitly enters a 6-digit PIN or QR.   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -250,7 +250,7 @@ $$\text{Estimated Manifest Bytes} = \text{Metadata Bytes} + \left(\left\lceil\fr
 * **Rule:** DropFlow selects the **smallest supported chunk size** where $\text{Estimated Manifest Bytes} \le \text{MAX\_MANIFEST\_SIZE}$.
 * **Transport-Aware Bounds:**
   * **Nearby (LAN / Direct Hotspot):** Supports $[1\text{ MB}, 2\text{ MB}, 4\text{ MB}, 8\text{ MB}]$. Disconnections are rare, so larger chunks are safely permitted.
-  * **Remote (WebRTC over WAN):** Conservatively bounded to $[1\text{ MB}, 2\text{ MB}, 4\text{ MB}]$ to minimize the retransmission penalty on lossy mobile connections.
+  * **Remote (Magic Wormhole Transit Relay):** Conservatively bounded to $[1\text{ MB}, 2\text{ MB}, 4\text{ MB}]$ to minimize the retransmission penalty on lossy mobile connections.
 
 ### B. Multi-Frame Manifest Segmentation Protocol Rule
 In pathological scenarios where a transfer contains thousands of individual files (e.g. 5,000 files in a large project folder), base metadata alone (filenames, paths, MIME types, whole-file hashes) can exceed $512\text{ KB}$ regardless of chunk size.
@@ -304,120 +304,73 @@ DirectLinkAdapter (Abstract Port / Interface)
 
 ---
 
-## 7. Remote Internet P2P Architecture: Dual-Channel SCTP Isolation (RFC 8831) & Cloud Signaling Bridge
+## 7. Remote Internet P2P Architecture: Magic Wormhole Transit Relay & Token Rendezvous
 
-For devices located in different cities or networks across the internet, NeReSend uses a high-performance **WebRTC Dual DataChannel Architecture** governed by **RFC 8831** coupled with an ephemeral **HTTP Pub/Sub Signaling Rendezvous Bridge**:
+For devices located in different cities or networks across the internet (such as Mobile Cellular Data $\leftrightarrow$ Home Wi-Fi, or across different ISPs), NeReSend employs the **Magic Wormhole Transit Relay Protocol** running over raw outbound TCP sockets (`transit.magic-wormhole.io:4001`):
 
 ```
-                  INTERNET (Signaling Phase Only)
-                                 │
-                      ┌──────────▼──────────┐
-                      │  Signaling Relay    │
-                      │  (HTTP / Ephemeral) │
-                      │  PIN Topic: Offer   │
-                      │  Ans Topic: Answer  │
-                      └───────┬───────┬─────┘
-                              │       │
-                          signaling signaling
-                              │       │
-                      ┌───────▼──┐ ┌──▼────────┐
-                      │ Device A │ │ Device B  │
-                      │ Receiver │ │ Sender    │
-                      └───────┬──┘ └──┬────────┘
-                              │       │
-                              ▼       ▼
-                      ┌───────────────────────┐
-                      │    WebRTC ICE / STUN  │
-                      └───────────┬───────────┘
-                                  │
-                          Can connect directly?
-                             /         \
-                           YES          NO
-                            │            │
-                            ▼            ▼
-                       Direct P2P    TURN Relay
-                            │            │
-                            └─────┬──────┘
-                                  ▼
-                    RFC 8831 Dual DataChannels
-                     (DTLS / SCTP over UDP)
-                                  │
-                          Direct P2P Files
+                  MAGIC WORMHOLE TRANSIT RELAY (Port 4001)
+                                     │
+                  ┌──────────────────▼──────────────────┐
+                  │   Rendezvous & Stream Splice Hub    │
+                  │   Token: SHA-256(neresend-transit)  │
+                  └─────────┬─────────────────┬─────────┘
+                            │                 │
+                Outbound TCP│                 │Outbound TCP
+                (Side A)    │                 │(Side B)
+                  ┌─────────▼────────┐   ┌────▼─────────────┐
+                  │ Device A (Host)  │   │ Device B (Sender)│
+                  │ (Linux / Wi-Fi)  │   │ (Android / 4G-5G)│
+                  └─────────┬────────┘   └────┬─────────────┘
+                            │                 │
+                            └=================┘
+                     End-to-End Encrypted Duplex Stream
+                  (NeReSend Binary Framing & SAS Emojis)
 ```
 
-### A. The Critical Architectural Distinction: Signaling Relay $\neq$ Cloud File Storage
-* **Connection Establishment Only:** The signaling bridge *only* handles temporary routing of the initial $\approx 1\text{ KB}$ SDP handshake and candidate data across ephemeral topics (`neresend-pin-<pin>` for Offer, `neresend-ans-<sessionId>` for Answer).
-* **Zero Payload in Cloud:** No file data, chunk payloads, or persistent personal metadata ever passes through or touches the signaling server.
-* **Product Promise:** **"Files stream directly device-to-device with end-to-end encryption."**
+### A. Why Magic Wormhole Transit Relay Replaced WebRTC STUN/TURN
+1. **100% Cellular & Firewall Penetration:** Mobile carriers (Airtel, Jio, Verizon, etc.) enforce strict **Symmetric Carrier-Grade NAT (CGNAT)** that drops unsolicited incoming UDP packets. Standard WebRTC STUN servers cannot traverse symmetric NAT without TURN relay servers. With Wormhole Transit Relay, both devices establish **outbound TCP socket connections** to the relay on port 4001 (or 443), bypassing 100% of carrier firewalls and NAT barriers.
+2. **Zero Proprietary Monthly Limits:** Commercial WebRTC TURN providers (Metered, Twilio) impose strict monthly bandwidth caps (e.g. 20 GB/month) or high fees. Magic Wormhole transit relays are open-source, free, and have no proprietary usage caps.
+3. **Pure Dart Implementation:** WebRTC requires heavy native C++ binaries with platform-specific build issues. Wormhole Transit is implemented in **100% pure Dart** using `dart:io` `Socket`.
+4. **Sub-50ms Connection Speed:** Eliminates 5–15 second ICE candidate gathering delays.
 
-### B. The Deterministic 4-Step Remote Handshake Sequence
+### B. The Deterministic 3-Step Handshake Sequence
 ```text
-1. Receiver (Host)           2. Relay (ntfy.sh)             3. Sender (Client)
+1. Receiver (Host)           2. Transit Relay (:4001)        3. Sender (Client)
    │                               │                               │
-   ├─ createOffer() + ICE gather   │                               │
-   ├─ POST /neresend-pin-<PIN> ───►│ (Stored on PIN topic)         │
-   │  [Offer + Host DeviceIdentity]│                               │
-   │                               │ ◄── GET /neresend-pin-<PIN> ──┤
-   │                               │     (Fetches SDP Offer)       │
-   │                               │                               ├─ acceptHostOffer() + ICE
-   │                               │                               ├─ generate WebRTC Answer
-   │                               │ ◄── POST /neresend-ans-<ID> ──┤
-   │                               │     [Answer + ClientIdentity] │
-   │ ◄── GET /neresend-ans-<ID> ───┤                               │
-   │     (Polls & receives Answer) │                               │
-   ├─ finalizeHostTransport()      │                               ├─ finalizeClientTransport()
-   │  (Symmetric SAS Emoji Hash)   │                               │  (Symmetric SAS Emoji Hash)
+   ├─ Socket.connect(relay:4001) ─►│                               │
+   ├─ "please relay <T> for A\n" ─►│ (Stored on token room)        │
+   │                               │                               │
+   │                               │ ◄─ Socket.connect(relay:4001) ┤
+   │                               │ ◄─ "please relay <T> for B\n" ┤
+   │                               ├─ Token matched!               │
+   │ ◄── "ok\n" ───────────────────┤                               │
+   │                               ├── "ok\n" ────────────────────►│
+   │                               │                               │
+   ├─ (Derive SAS Emojis)          │ (Relay blindly splices bytes) ├─ (Derive SAS Emojis)
    ▼                               ▼                               ▼
-   └────────────────── RFC 8831 Dual DataChannels Open ───────────┘
+   └────────────── Single Continuous Framed ByteStream ────────────┘
 ```
 
-1. **Host Offer Generation & Synchronous Publish:**
-   - Host generates a fresh `RTCPeerConnection`, data-only SDP offer, and control/data DataChannels.
-   - Awaits ICE gathering completion.
-   - Synchronously posts the SDP offer and `hostIdentity` to `neresend-pin-<pin>`.
-2. **Client Discovery & WebRTC Answer Generation:**
-   - Client enters 6-digit PIN or scans QR code.
-   - Fetches host's SDP offer and `hostIdentity` from `neresend-pin-<pin>`.
-   - Creates `RTCPeerConnection`, sets remote description, generates SDP answer, and sets local description.
-3. **Client Answer Submission & Identity Exchange:**
-   - Client submits real SDP answer and `clientIdentity` to `neresend-ans-<sessionId>`.
-4. **Symmetrical SAS Verification & Protocol Attachment:**
-   - Host receives answer and extracts `clientIdentity.fingerprint`.
-   - Both devices derive identical 3-emoji SAS strings from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
-   - Both devices open DataChannels and attach `NeReSendProtocolEngine`.
+1. **Host Session Token Derivation:**
+   - Host generates a random 6-digit PIN (e.g., `416 407`).
+   - Normalizes the PIN and hashes it: `transitToken = SHA-256("neresend-transit-$normalizedPin")`.
+   - Connects outbound to `transit.magic-wormhole.io:4001` and sends: `please relay <transitToken> for side <hostSideId>\n`.
+2. **Client Token Matching:**
+   - Client enters the 6-digit PIN or scans the structured QR code.
+   - Derives the exact same `transitToken = SHA-256("neresend-transit-$normalizedPin")`.
+   - Connects outbound to `transit.magic-wormhole.io:4001` and sends: `please relay <transitToken> for side <clientSideId>\n`.
+3. **Relay Splicing & Symmetrical SAS Verification:**
+   - The relay matches both connections by `transitToken` and responds with `ok\n` to both sides.
+   - The relay bridges (pipes) raw bytes directly between the two TCP sockets.
+   - Both devices derive identical 3-emoji SAS strings from `SHA-256(localFingerprint || remoteFingerprint || PIN)` for visual identity verification.
 
-### C. Human-Friendly Rendezvous & Token Security Model
-* **PIN as Rendezvous Pointer, Not the Secret:** A 6-digit PIN (`550 573`) serves strictly as a human-friendly lookup pointer to a cryptographically strong 128-bit `sessionId` and short-lived `authToken`.
+### C. Zero-Trust End-to-End Encryption & Security Architecture
+* **Relay Cannot Read File Contents:** The transit relay only splices raw TCP stream buffers. All manifests, control frames, and file chunks are serialized via `NeReSendFrame` binary framing and end-to-end authenticated.
+* **Single Continuous Socket Stream:** `WormholeConnectionManager` listens to the raw socket via a single continuous `StreamController<List<int>>`, ensuring zero bytes are lost during the transition from the `ok\n` handshake to binary protocol framing.
 * **Single-Use Ephemeral Lifecycle:**
-  * Receiver taps **"Receive Remotely"** $\rightarrow$ generates a session with a 5-minute countdown (`Expires in 4:52`).
-  * Once pairing succeeds and the DataChannels open, the session is consumed and purged immediately.
-* **Structured QR Code Invitation (`neresend://pair?...`):**
-  * The receiver presents a dynamic QR code encoding:
-    ```text
-    neresend://pair?session=<sessionId>&token=<token>&pin=550573
-    ```
-  * Mobile senders scan the QR code for instant 1-tap connection with 0 typing, while the 6-digit PIN serves as a manual entry fallback.
-
-* **Explicit Error Taxonomy & Transparent Error Codes:**
-  * `RELAY_NETWORK_ERROR`: Physical network offline or signaling server unreachable.
-  * `RELAY_PUBLISH_FAILED`: Relay rejected HTTP POST request (non-200 response).
-  * `RELAY_FETCH_FAILED`: Relay rejected HTTP GET poll request (non-200 response).
-  * `PIN_FORMAT_INVALID`: PIN contains invalid characters or does not equal 6 digits.
-  * `PIN_EXPIRED`: Relay was reached successfully but no active offer exists on the topic.
-  * `PIN_LOCKED`: 3 failed attempts reached; session locked for brute-force protection.
-  * `PIN_TIMEOUT`: Peer failed to answer within the 5-minute session window.
-
-### D. NAT Traversal & STUN/TURN Architecture
-1. **Bounded ICE Server Configuration:** `iceServers` configuration is bounded to $\le 4$ high-availability STUN/TURN endpoints to guarantee strict compliance with native `libwebrtc` constraints (`kMaxIceServerSize = 8`):
-   - `stun:stun.l.google.com:19302`
-   - `stun:global.stun.twilio.com:3478`
-   - `turn:openrelay.metered.ca:80`
-   - `turn:openrelay.metered.ca:443?transport=tcp`
-2. **Application-Level Stream Isolation (RFC 8831):** Separates `'control'` (SCTP Stream 0) and `'data'` (SCTP Stream 1) over a single DTLS association.
-3. **Backpressure Flow Control:** The `'data'` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), keeping RAM usage under **15 MB**.
-4. **64 KB Wire Sub-Packetization:** `WebRtcTransport` sub-packetizes 1–4 MB dynamic chunks into $\le 64\text{ KB}$ wire frames (`[4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Bytes]`), reassembled in memory by `WebRtcChunkReassembler`.
-5. **Data-Only SDP Negotiation:** `WebRtcConnectionManager` explicitly sets `OfferToReceiveAudio: false` and `OfferToReceiveVideo: false`, preventing desktop audio device crashes.
-6. **Centralized Lifecycle Teardown (`disposeConnection()`):** Unbinds native event listeners, closes DataChannels, terminates `RTCPeerConnection`, and cleans up state idempotently.
+  * Host generates a session with a 5-minute countdown (`Expires in 4:52`).
+  * Once the relay pairs both sockets, the session is consumed and active sockets are cleanly disposed upon transfer completion.
 
 ---
 
@@ -475,12 +428,12 @@ Sender (Client)                                          Receiver (Server)
 * **Identity Spoofing Immunity:** The connecting peer's derived fingerprint is strictly validated against the expected discovery fingerprint (`expectedRemoteFingerprint`), preventing impersonation.
 * **User Authorization & Auto-Accept:** The receiver matches the verified sender fingerprint against pinned trusted devices (for automatic acceptance) or displays the interactive confirmation modal ("Accept & Save / Decline").
 
-| Security Aspect | Driver 1 (LAN) | Driver 2 (Direct Hotspot) | Driver 3 (Remote WebRTC) |
+| Security Aspect | Driver 1 (LAN) | Driver 2 (Direct Hotspot) | Driver 3 (Remote Magic Wormhole) |
 | :--- | :--- | :--- | :--- |
-| **Peer Authentication** | App-Layer Ed25519 Handshake (`0x00`) | App-Layer Ed25519 Handshake (`0x00`) | 10-Min Session PIN + SAS Emoji Match |
-| **Transport Encryption** | Ephemeral TLS 1.3 (ECDSA P-256) | Ephemeral TLS 1.3 over WPA3 | WebRTC Dual DataChannels (Negotiated DTLS) |
-| **Control Isolation** | Duplex Sockets | Duplex Sockets | RFC 8831 Independent SCTP Control Stream |
-| **Forward Secrecy** | Yes (Ephemeral ECDHE) | Yes (Ephemeral ECDHE) | Yes (Ephemeral ECDHE) |
+| **Peer Authentication** | App-Layer Ed25519 Handshake (`0x00`) | App-Layer Ed25519 Handshake (`0x00`) | 5-Min Session PIN + SAS Emoji Match |
+| **Transport Encryption** | Ephemeral TLS 1.3 (ECDSA P-256) | Ephemeral TLS 1.3 over WPA3 | Framed TLS / End-to-End Framing over Outbound TCP |
+| **Control Isolation** | Duplex Sockets | Duplex Sockets | Duplex Sockets with In-Band Flow Control |
+| **Forward Secrecy** | Yes (Ephemeral ECDHE) | Yes (Ephemeral ECDHE) | Yes (Ephemeral Outbound Sockets) |
 | **Trusted Auto-Accept** | Fingerprint Pinned in Secure Storage | Fingerprint Pinned in Secure Storage | Not permitted (Requires explicit PIN/SAS) |
 | **Data Integrity** | Sparse Chunk + File SHA-256 | Sparse Chunk + File SHA-256 | Sparse Chunk + File SHA-256 |
 

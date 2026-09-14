@@ -3,26 +3,11 @@ import 'dart:async';
 import '../../../domain/contracts/peer_discovery_port.dart';
 import '../../../domain/models/device_identity.dart';
 import '../../../domain/models/discovered_peer.dart';
-import '../../../domain/models/transfer_mode.dart';
-import '../transports/webrtc/remote_signaling_client.dart';
+import '../../../domain/models/remote_session_info.dart';
 
-/// Result of a successful remote peer matchmaking
-class RemotePairingResult {
-  final String sdpOffer;
-  final DiscoveredPeer hostPeer;
-  final RemoteSessionInfo sessionInfo;
-
-  const RemotePairingResult({
-    required this.sdpOffer,
-    required this.hostPeer,
-    required this.sessionInfo,
-  });
-}
-
-/// Remote Internet peer discovery driver coordinating ephemeral cloud signaling and WebRTC rendezvous
+/// Remote Internet peer discovery driver coordinating ephemeral session state
 class RemoteDiscoveryDriver implements PeerDiscoveryPort {
-  final DeviceIdentity localIdentity;
-  final RemoteSignalingClient signalingClient;
+  DeviceIdentity _localIdentity;
 
   final Map<String, DiscoveredPeer> _peers = {};
   final StreamController<List<DiscoveredPeer>> _peerController =
@@ -32,9 +17,14 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
   bool _isDiscovering = false;
 
   RemoteDiscoveryDriver({
-    required this.localIdentity,
-    RemoteSignalingClient? signalingClient,
-  }) : signalingClient = signalingClient ?? RemoteSignalingClient();
+    required DeviceIdentity localIdentity,
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+  }
 
   @override
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peerController.stream;
@@ -49,71 +39,15 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
     _isDiscovering = true;
   }
 
-  /// Host creates a 5-minute ephemeral session with WebRTC SDP offer
-  Future<RemoteSessionInfo> createHostSession({
-    required String sdpOffer,
-    String? preferredPin,
-  }) async {
+  /// Explicitly set the active host session (e.g. for Wormhole transit)
+  void setActiveHostSession(RemoteSessionInfo session) {
+    _activeHostSession = session;
     _isDiscovering = true;
-    final sessionInfo = await signalingClient.createSession(
-      hostIdentity: localIdentity,
-      sdpOffer: sdpOffer,
-      preferredPin: preferredPin,
-    );
-    _activeHostSession = sessionInfo;
-    return sessionInfo;
   }
 
-  /// Host awaits the client's SDP answer and registers the connecting peer
-  Future<({String sdpAnswer, DeviceIdentity? clientIdentity})>
-      awaitClientAnswer({required String sessionId}) async {
-    final result = await signalingClient.awaitAnswer(sessionId: sessionId);
-    if (result.clientIdentity != null) {
-      final clientPeer = DiscoveredPeer(
-        id: result.clientIdentity!.deviceId,
-        alias: result.clientIdentity!.alias,
-        deviceType: DeviceType.android,
-        ipAddress: '0.0.0.0', // WebRTC DTLS direct ICE / TURN relay
-        port: 0,
-        supportedMode: TransferMode.remote,
-        identityPublicKey: result.clientIdentity!.publicKeyBase64,
-        fingerprint: result.clientIdentity!.fingerprint,
-        lastSeen: DateTime.now(),
-      );
-      registerPeer(clientPeer);
-    }
-    return result;
-  }
-
-  /// Client joins an active session using 6-digit PIN or structured QR invite URI
-  Future<RemotePairingResult> pairWithPin({
-    required String pinOrUri,
-  }) async {
-    _isDiscovering = true;
-    final sessionData = await signalingClient.joinSession(
-      pinOrUri: pinOrUri,
-      clientIdentity: localIdentity,
-    );
-
-    final hostIdentity = sessionData.hostIdentity;
-    final hostPeer = DiscoveredPeer(
-      id: hostIdentity.deviceId,
-      alias: hostIdentity.alias,
-      deviceType: DeviceType.android,
-      ipAddress: '0.0.0.0', // WebRTC DTLS direct ICE / TURN relay
-      port: 0,
-      supportedMode: TransferMode.remote,
-      identityPublicKey: hostIdentity.publicKeyBase64,
-      fingerprint: hostIdentity.fingerprint,
-      lastSeen: DateTime.now(),
-    );
-
-    registerPeer(hostPeer);
-    return RemotePairingResult(
-      sdpOffer: sessionData.sdpOffer,
-      hostPeer: hostPeer,
-      sessionInfo: sessionData.sessionInfo,
-    );
+  /// Clear active host session
+  void clearActiveHostSession() {
+    _activeHostSession = null;
   }
 
   /// Register a discovered or connected remote peer
@@ -136,10 +70,7 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
   @override
   Future<void> stopDiscovery() async {
     _isDiscovering = false;
-    if (_activeHostSession != null) {
-      signalingClient.closeSession(_activeHostSession!.sessionId);
-      _activeHostSession = null;
-    }
+    _activeHostSession = null;
     _peers.clear();
     if (!_peerController.isClosed) {
       _peerController.add(const []);
@@ -149,7 +80,6 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
   @override
   Future<void> dispose() async {
     await stopDiscovery();
-    signalingClient.dispose();
     await _peerController.close();
   }
 }

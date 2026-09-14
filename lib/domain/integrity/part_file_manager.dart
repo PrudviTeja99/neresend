@@ -87,6 +87,17 @@ class PartFileManager {
     if (!await partFile.exists()) {
       await partFile.create();
     }
+    if (item.size > 0) {
+      final raf = await partFile.open(mode: FileMode.writeOnlyAppend);
+      try {
+        final currentLength = await raf.length();
+        if (currentLength != item.size) {
+          await raf.truncate(item.size);
+        }
+      } finally {
+        await raf.close();
+      }
+    }
 
     final metaFile = File(getMetaPath(downloadDir, cleanName));
     if (!await metaFile.exists()) {
@@ -104,8 +115,8 @@ class PartFileManager {
 
   /// Sparse write of a verified chunk directly at the offset calculated from [chunkIndex]
   ///
-  /// IMPORTANT: This method uses FileMode.write (not append) to enable arbitrary seeking
-  /// via setPosition(). This is critical for supporting out-of-order chunk arrival,
+  /// IMPORTANT: This method uses FileMode.writeOnlyAppend with setPosition() to enable
+  /// arbitrary seeking. This is critical for supporting out-of-order chunk arrival,
   /// which is common when chunks are sub-packetized into 64 KB segments across dual
   /// WebRTC DataChannels or when network conditions cause variable latency.
   ///
@@ -128,9 +139,8 @@ class PartFileManager {
     }
 
     // Sparse random-access write at chunk offset
-    // Uses FileMode.append to open in read/write mode without truncating existing content.
     final offset = chunkIndex * item.chunkSize;
-    final raf = await partFile.open(mode: FileMode.append);
+    final raf = await partFile.open(mode: FileMode.writeOnlyAppend);
     try {
       await raf.setPosition(offset);
       await raf.writeFrom(chunkBytes);

@@ -12,6 +12,7 @@ import '../state/peer_list_provider.dart';
 import '../state/readiness_state_provider.dart';
 import '../widgets/animated_radar_canvas.dart';
 import '../widgets/center_device_avatar.dart';
+import '../widgets/edit_device_name_dialog.dart';
 import '../widgets/peer_bubble_node.dart';
 
 /// Tab 1: Nearby Radar screen with dynamic peer bubbles, zero-click readiness, and file picker
@@ -110,15 +111,14 @@ class NearbyTabScreen extends ConsumerWidget {
                       data: (identity) => CenterDeviceAvatar(
                         alias: identity.alias,
                         readinessState: _mapReadiness(readiness),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Identity Fingerprint: ${identity.fingerprint}'),
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                        },
+                        onEditTap: () => EditDeviceNameDialog.show(
+                          context,
+                          currentAlias: identity.alias,
+                        ),
+                        onTap: () => EditDeviceNameDialog.show(
+                          context,
+                          currentAlias: identity.alias,
+                        ),
                       ),
                       loading: () => const CircularProgressIndicator(
                           color: AppColors.accent),

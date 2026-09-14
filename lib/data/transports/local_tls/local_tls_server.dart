@@ -15,7 +15,7 @@ import 'tls_certificate_manager.dart';
 /// Local TLS Server listening for incoming peer connections on LAN
 class LocalTlsServer implements TransportPort {
   final IdentityService identityService;
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final SecurityContext? customSecurityContext;
 
   SecureServerSocket? _serverSocket;
@@ -24,9 +24,15 @@ class LocalTlsServer implements TransportPort {
 
   LocalTlsServer({
     required this.identityService,
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.customSecurityContext,
-  });
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+  }
 
   @override
   Stream<NeReSendTransport> get onIncomingTransport =>

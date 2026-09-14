@@ -56,12 +56,14 @@ class CenterDeviceAvatar extends StatefulWidget {
   final String alias;
   final DeviceReadinessState readinessState;
   final VoidCallback? onTap;
+  final VoidCallback? onEditTap;
 
   const CenterDeviceAvatar({
     super.key,
     required this.alias,
     this.readinessState = DeviceReadinessState.ready,
     this.onTap,
+    this.onEditTap,
   });
 
   @override
@@ -133,13 +135,35 @@ class _CenterDeviceAvatarState extends State<CenterDeviceAvatar>
               );
             },
           ),
-          const SizedBox(height: 14),
-          Text(
-            widget.alias,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: widget.onEditTap ?? widget.onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      widget.alias,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.edit_rounded,
+                    size: 14,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -173,4 +197,3 @@ class _CenterDeviceAvatarState extends State<CenterDeviceAvatar>
     );
   }
 }
-

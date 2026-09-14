@@ -8,7 +8,7 @@ import '../transports/direct_link/ble_signaler.dart';
 
 /// PeerDiscoveryPort implementation using Bluetooth Low Energy (BLE) GATT
 class BleDiscoveryDriver implements PeerDiscoveryPort {
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final int tcpPort;
 
   final Map<String, ({DiscoveredPeer peer, DateTime lastSeen})> _peers = {};
@@ -19,14 +19,21 @@ class BleDiscoveryDriver implements PeerDiscoveryPort {
   Timer? _pruneTimer;
 
   BleDiscoveryDriver({
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.tcpPort = 53318,
-  });
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+  }
 
   @override
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peerController.stream;
 
-  List<DiscoveredPeer> get currentPeers => _peers.values.map((e) => e.peer).toList();
+  List<DiscoveredPeer> get currentPeers =>
+      _peers.values.map((e) => e.peer).toList();
   bool get isDiscovering => _isDiscovering;
 
   @override
@@ -46,7 +53,8 @@ class BleDiscoveryDriver implements PeerDiscoveryPort {
     if (peer == null) return;
 
     // Ignore self
-    if (peer.id == localIdentity.deviceId || peer.fingerprint == localIdentity.fingerprint) {
+    if (peer.id == localIdentity.deviceId ||
+        peer.fingerprint == localIdentity.fingerprint) {
       return;
     }
 

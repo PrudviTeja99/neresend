@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/protocol_constants.dart';
@@ -19,8 +18,9 @@ import '../protocol/neresend_protocol_engine.dart';
 import '../transports/direct_link/direct_link_factory.dart';
 import '../transports/local_tls/local_tls_client.dart';
 import '../transports/local_tls/local_tls_server.dart';
-import '../transports/webrtc/remote_signaling_client.dart';
-import '../transports/webrtc/webrtc_connection_manager.dart';
+import '../../domain/models/remote_session_info.dart';
+import '../transports/wormhole/wormhole_connection_manager.dart';
+import '../transports/wormhole/wormhole_transit_transport.dart';
 import 'identity_service.dart';
 import 'power_management_service.dart';
 import 'storage_service.dart';
@@ -49,7 +49,7 @@ class IncomingTransferPrompt {
 /// Central controller coordinating discovery drivers, transport adapters, protocol engine, and storage
 class TransferOrchestrator {
   final IdentityService identityService;
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final StorageService storageService;
   final PowerManagementService powerService;
 
@@ -59,7 +59,7 @@ class TransferOrchestrator {
 
   late final LocalTlsServer localTlsServer;
   late final LocalTlsClient localTlsClient;
-  late final WebRtcConnectionManager webrtcManager;
+  late final WormholeConnectionManager wormholeManager;
   late final NeReSendProtocolEngine protocolEngine;
 
   final Map<String, DiscoveredPeer> _aggregatedPeers = {};
@@ -81,30 +81,44 @@ class TransferOrchestrator {
 
   TransferOrchestrator({
     required this.identityService,
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     required this.storageService,
     PowerManagementService? powerService,
     int tlsPort = 53318,
-  })  : _tlsPort = tlsPort,
+  })  : _localIdentity = localIdentity,
+        _tlsPort = tlsPort,
         powerService = powerService ?? PowerManagementService() {
     lanDiscovery =
-        LanDiscoveryDriver(localIdentity: localIdentity, tcpPort: _tlsPort);
+        LanDiscoveryDriver(localIdentity: _localIdentity, tcpPort: _tlsPort);
     bleDiscovery =
-        BleDiscoveryDriver(localIdentity: localIdentity, tcpPort: _tlsPort);
-    remoteDiscovery = RemoteDiscoveryDriver(localIdentity: localIdentity);
+        BleDiscoveryDriver(localIdentity: _localIdentity, tcpPort: _tlsPort);
+    remoteDiscovery = RemoteDiscoveryDriver(localIdentity: _localIdentity);
 
     localTlsServer = LocalTlsServer(
       identityService: identityService,
-      localIdentity: localIdentity,
+      localIdentity: _localIdentity,
     );
 
     localTlsClient = LocalTlsClient(
       identityService: identityService,
-      localIdentity: localIdentity,
+      localIdentity: _localIdentity,
     );
 
-    webrtcManager = WebRtcConnectionManager();
-    protocolEngine = NeReSendProtocolEngine(localIdentity: localIdentity);
+    wormholeManager = WormholeConnectionManager();
+    protocolEngine = NeReSendProtocolEngine(localIdentity: _localIdentity);
+  }
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  /// Updates local identity across all discovery drivers, protocol engine, and TLS servers
+  void updateLocalIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+    lanDiscovery.updateIdentity(newIdentity);
+    bleDiscovery.updateIdentity(newIdentity);
+    remoteDiscovery.updateIdentity(newIdentity);
+    localTlsServer.updateIdentity(newIdentity);
+    localTlsClient.updateIdentity(newIdentity);
+    protocolEngine.updateIdentity(newIdentity);
   }
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
@@ -233,85 +247,72 @@ class TransferOrchestrator {
   RemoteSessionInfo? get activeRemoteSession =>
       remoteDiscovery.activeHostSession;
 
-  ({
-    RTCPeerConnection peerConnection,
-    RTCDataChannel controlChannel,
-    RTCDataChannel dataChannel,
-    String sessionId,
-  })? _activeHostConnection;
+  WormholeTransitTransport? _activeRemoteTransport;
 
-  /// Idempotently tears down the active remote host WebRTC connection and session
+  /// Idempotently tears down the active remote host connection and session
   Future<void> disposeActiveRemoteHostSession() async {
-    final activeConn = _activeHostConnection;
-    _activeHostConnection = null;
-
-    if (activeConn != null) {
-      await webrtcManager.disposeConnection(
-        peerConnection: activeConn.peerConnection,
-        controlChannel: activeConn.controlChannel,
-        dataChannel: activeConn.dataChannel,
-      );
-      remoteDiscovery.signalingClient.closeSession(activeConn.sessionId);
+    final t = _activeRemoteTransport;
+    _activeRemoteTransport = null;
+    if (t != null) {
+      await t.close();
     }
+    await wormholeManager.dispose();
+    remoteDiscovery.clearActiveHostSession();
   }
 
-  /// Host starts an ephemeral WebRTC remote session on the Remote tab.
-  /// Strictly tears down any prior session and PeerConnection before creating a new one.
+  /// Host starts an ephemeral Wormhole remote session on the Remote tab.
+  /// Strictly tears down any prior session before creating a new one.
   Future<RemoteSessionInfo> startRemoteHostSession({
     String? preferredPin,
     bool forceNew = false,
   }) async {
     if (!forceNew &&
         remoteDiscovery.activeHostSession != null &&
-        !remoteDiscovery.activeHostSession!.isExpired &&
-        _activeHostConnection != null) {
+        !remoteDiscovery.activeHostSession!.isExpired) {
       return remoteDiscovery.activeHostSession!;
     }
 
     // 1. Strictly tear down old connection and session first
     await disposeActiveRemoteHostSession();
 
-    // 2. Create fresh host WebRTC offer and channels with data-only constraints
-    final hostOfferData = await webrtcManager.createHostOffer();
-
-    // 3. Register session on signaling client
-    final sessionInfo = await remoteDiscovery.createHostSession(
-      sdpOffer: hostOfferData.sdpOffer,
-      preferredPin: preferredPin,
+    // 2. Generate clean 6-digit PIN
+    final pin = preferredPin ?? RemoteSessionInfo.generatePin();
+    final normalizedPin = RemoteSessionInfo.normalizePin(pin);
+    final sessionId = RemoteSessionInfo.generateSessionId();
+    final authToken = RemoteSessionInfo.generateAuthToken();
+    final inviteUri = RemoteSessionInfo.buildInviteUri(
+      sessionId: sessionId,
+      authToken: authToken,
+      pin: normalizedPin,
     );
 
-    _activeHostConnection = (
-      peerConnection: hostOfferData.peerConnection,
-      controlChannel: hostOfferData.controlChannel,
-      dataChannel: hostOfferData.dataChannel,
-      sessionId: sessionInfo.sessionId,
+    final sessionInfo = RemoteSessionInfo(
+      sessionId: sessionId,
+      authToken: authToken,
+      pin: pin,
+      inviteUri: inviteUri,
+      createdAt: DateTime.now(),
     );
 
-    // 4. Asynchronously await client's answer and attach protocol engine
+    remoteDiscovery.setActiveHostSession(sessionInfo);
+
+    // 3. Asynchronously connect to Wormhole transit relay and await peer
     unawaited(() async {
       try {
         debugPrint(
-            '[REMOTE HOST] Awaiting client SDP answer for session ${sessionInfo.sessionId}...');
-        final answerResult = await remoteDiscovery.awaitClientAnswer(
-          sessionId: sessionInfo.sessionId,
-        );
-        debugPrint(
-            '[REMOTE HOST] Received client answer, finalizing host WebRTC transport...');
-        final transport = await webrtcManager.finalizeHostTransport(
-          peerConnection: hostOfferData.peerConnection,
-          sdpAnswer: answerResult.sdpAnswer,
-          controlChannel: hostOfferData.controlChannel,
-          dataChannel: hostOfferData.dataChannel,
+            '[WORMHOLE HOST] Awaiting peer connection on Wormhole transit relay for PIN: $pin...');
+        final transport = await wormholeManager.connectAndRendezvous(
+          pin: pin,
           localFingerprint: localIdentity.fingerprint,
-          remoteFingerprint:
-              answerResult.clientIdentity?.fingerprint ?? 'REMOTE_PEER',
-          sessionPin: sessionInfo.pin,
+          remoteFingerprint: 'REMOTE_CLIENT',
+          isHost: true,
         );
+        _activeRemoteTransport = transport;
         debugPrint(
-            '[REMOTE HOST] WebRTC host transport established successfully (SAS: ${transport.sasEmojis})');
+            '[WORMHOLE HOST] Peer connected via Wormhole transit relay (SAS: ${transport.sasEmojis})');
         protocolEngine.listenToTransport(transport);
       } catch (e, stackTrace) {
-        debugPrint('[REMOTE HOST] Remote handshake error: $e\n$stackTrace');
+        debugPrint('[WORMHOLE HOST] Remote handshake error: $e\n$stackTrace');
         await disposeActiveRemoteHostSession();
       }
     }());
@@ -327,36 +328,27 @@ class TransferOrchestrator {
     if (files.isEmpty) return;
 
     try {
-      debugPrint('[REMOTE CLIENT] Pairing with PIN or URI: $pinOrUri');
-      // 1. Join session and fetch host's SDP offer
-      final pairResult = await remoteDiscovery.pairWithPin(
-        pinOrUri: pinOrUri,
-      );
+      debugPrint('[WORMHOLE CLIENT] Pairing with PIN or URI: $pinOrUri');
+      final parsed = RemoteSessionInfo.parseInviteUri(pinOrUri);
+      final pin = parsed.pin;
+      if (pin.replaceAll(' ', '').trim().isEmpty) {
+        throw const NetworkException('Invalid PIN format',
+            code: 'PIN_FORMAT_INVALID');
+      }
 
       debugPrint(
-          '[REMOTE CLIENT] Received host SDP offer, creating WebRTC answer...');
-      // 2. WebRTC create answer
-      final acceptResult = await webrtcManager.acceptHostOffer(
-        sdpOffer: pairResult.sdpOffer,
-      );
-
-      debugPrint('[REMOTE CLIENT] Submitting SDP answer to signaling relay...');
-      // 3. Submit real SDP answer to signaling client
-      await remoteDiscovery.signalingClient.submitAnswer(
-        sessionId: pairResult.sessionInfo.sessionId,
-        sdpAnswer: acceptResult.sdpAnswer,
-        clientIdentity: localIdentity,
-      );
-
-      debugPrint('[REMOTE CLIENT] Finalizing client WebRTC transport...');
-      // 4. Finalize client transport
-      final transport = await acceptResult.finalizeTransport(
+          '[WORMHOLE CLIENT] Connecting to Wormhole transit relay for PIN: $pin...');
+      final transport = await wormholeManager.connectAndRendezvous(
+        pin: pin,
         localFingerprint: localIdentity.fingerprint,
-        remoteFingerprint: pairResult.hostPeer.fingerprint,
-        sessionPin: pairResult.sessionInfo.pin,
+        remoteFingerprint: 'REMOTE_HOST',
+        isHost: false,
+        timeout: const Duration(seconds: 45),
       );
+
+      _activeRemoteTransport = transport;
       debugPrint(
-          '[REMOTE CLIENT] WebRTC client transport established (SAS: ${transport.sasEmojis})');
+          '[WORMHOLE CLIENT] Connected to host via Wormhole transit relay (SAS: ${transport.sasEmojis})');
 
       final totalBytes = files.fold<int>(
           0, (sum, f) => sum + (f.existsSync() ? f.lengthSync() : 0));
@@ -370,8 +362,8 @@ class TransferOrchestrator {
               : '${files.length} files',
           totalBytes: totalBytes,
           isSender: true,
-          peerAlias: pairResult.hostPeer.alias,
-          peerFingerprint: pairResult.hostPeer.fingerprint,
+          peerAlias: 'Remote Peer',
+          peerFingerprint: 'REMOTE_HOST',
           timestamp: DateTime.now(),
           status: 'sending',
         ),
@@ -379,7 +371,7 @@ class TransferOrchestrator {
 
       await protocolEngine.startSenderSession(transport, files);
     } catch (e, stackTrace) {
-      debugPrint('[REMOTE CLIENT] sendRemoteFiles failed: $e\n$stackTrace');
+      debugPrint('[WORMHOLE CLIENT] sendRemoteFiles failed: $e\n$stackTrace');
       rethrow;
     }
   }
@@ -426,6 +418,28 @@ class TransferOrchestrator {
       {bool rememberDevice = false, String? senderFingerprint}) async {
     if (rememberDevice && senderFingerprint != null) {
       await identityService.pinTrustedDevice(senderFingerprint);
+    }
+
+    final pending = protocolEngine.getPendingRequest(transferId);
+    if (pending != null) {
+      final manifest = pending.manifest;
+      await storageService.addHistoryEntry(
+        TransferHistoryEntry(
+          id: const Uuid().v4(),
+          transferId: transferId,
+          fileName: manifest.totalFiles == 1
+              ? (manifest.files.isNotEmpty
+                  ? manifest.files.first.fileName
+                  : 'File')
+              : '${manifest.totalFiles} files',
+          totalBytes: manifest.totalBytes,
+          isSender: false,
+          peerAlias: manifest.senderAlias,
+          peerFingerprint: manifest.senderFingerprint,
+          timestamp: DateTime.now(),
+          status: 'receiving',
+        ),
+      );
     }
 
     final downloadDir = await storageService.getDefaultDownloadDirectory();

@@ -1,34 +1,35 @@
-# Phase 5: Driver 3 — Remote Internet WebRTC Engine (RFC 8831 Dual DataChannels)
+# Phase 5: Driver 3 — Remote Internet Magic Wormhole Transit Relay Engine
 
-This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataChannels, lightweight HTTP pub/sub PIN signaling relay, RFC 8831 independent SCTP stream separation, asynchronous backpressure flow control, and Short Authentication String (SAS) emoji verification.
+This phase implements internet-wide peer-to-peer sharing using the **Magic Wormhole Transit Relay Protocol** over outbound TCP sockets, deterministic SHA-256 token rendezvous, 5-minute single-use session countdown, structured QR pairing, continuous socket stream splicing, and Short Authentication String (SAS) emoji verification.
 
 ---
 
 ## 🎯 Phase Goals & Objectives
 
-1. Implement **Cloud Signaling Bridge** via `RemoteSignalingClient` over HTTP pub/sub topics (`POST /<topic>` and `GET /<topic>/json?poll=1`) for ephemeral session rendezvous (exchanging $\approx 1\text{ KB}$ SDP offers/answers & client identities).
-2. Implement **Deterministic 4-Step Remote Handshake Sequence**:
-   - Host generates SDP offer, awaits ICE gathering, and posts to `neresend-pin-<pin>`.
-   - Client joins with PIN/QR, fetches host offer, creates WebRTC answer.
-   - Client submits real SDP answer and `clientIdentity` to `neresend-ans-<sessionId>`.
-   - Host receives answer and finalizes WebRTC transport using symmetric SAS emoji hash.
-3. Implement **Human-Friendly PIN + Token Security Model**:
-   - 6-digit human PIN (`550 573`) acts as a lookup pointer to a 128-bit `sessionId` and short-lived `authToken`.
+1. Implement **Magic Wormhole Transit Relay Connector** via `WormholeConnectionManager` connecting outbound to `transit.magic-wormhole.io:4001` (or self-hosted transit relays).
+2. Implement **Deterministic 3-Step Transit Handshake Sequence**:
+   - Host generates 6-digit PIN $\to$ normalized to `transitToken = SHA-256("neresend-transit-$normalizedPin")`.
+   - Host connects outbound to relay: `please relay <transitToken> for side <hostSideId>\n`.
+   - Client joins with PIN/QR, computes identical `transitToken`, and connects outbound: `please relay <transitToken> for side <clientSideId>\n`.
+   - Relay pairs both sockets by `transitToken`, responds `ok\n` to both sides, and splices the raw byte streams.
+3. Implement **Continuous Socket Stream Invariant**:
+   - `WormholeConnectionManager` listens to the raw `dart:io` `Socket` using a single continuous `StreamController<List<int>>`.
+   - Any bytes arriving immediately after the `ok\n` handshake delimiter are preserved and routed seamlessly to `WormholeTransitTransport` without stream re-subscription errors.
+4. Implement **Human-Friendly PIN + Token Security Model**:
+   - 6-digit human PIN (`550 573`) acts as a lookup pointer and token derivation seed.
    - 5-minute single-use session countdown timer (`Expires in 4:52`).
-   - Single-use consumption: session is automatically deleted upon DataChannel establishment.
-4. Implement **Structured QR Code Pairing**:
+   - Single-use consumption: session is automatically closed upon transfer completion.
+5. Implement **Structured QR Code Pairing**:
    - Receiver generates QR code containing `neresend://pair?session=<id>&token=<token>&pin=<code>`.
-   - Sender scans QR for instant 1-tap connection with zero manual typing.
-5. Configure `flutter_webrtc` `RTCPeerConnection` with bounded STUN/TURN servers ($\le 4$ servers to respect native `kMaxIceServerSize = 8`) to guarantee connectivity across strict symmetric NATs and enterprise/carrier firewalls.
-6. Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on both offer and answer generation to prevent native audio subsystem / ADM initialization crashes on desktop/Linux.
-7. Implement **Centralized & Idempotent Connection Lifecycle Teardown** (`disposeConnection()`) ensuring clean sequential regeneration ("New PIN"), session expiration, and error handling.
-8. Implement **RFC 8831 Dual DataChannels**:
-   - `'control'` channel: Priority stream for manifests, SAS verification, and instant $< 20\text{ ms}$ pause/cancel commands.
-   - `'data'` channel: Bulk binary data stream with dynamic chunks (1–4 MB).
-9. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
-10. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived symmetrically from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
-11. Implement **Transparent Error Handling** (`RELAY_NETWORK_ERROR`, `PIN_FORMAT_INVALID`, `PIN_EXPIRED`, `PIN_LOCKED`, `PIN_TIMEOUT`).
-12. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
+   - Sender scans QR via `QrScannerDialog` for instant 1-tap connection with zero manual typing.
+6. **100% Cellular & Firewall Penetration**:
+   - Both peers initiate outbound TCP connections, cleanly penetrating 100% of mobile carrier Symmetric CGNATs (4G/5G) and strict firewalls.
+   - Zero proprietary bandwidth limits or paid monthly quotas.
+7. Implement **Non-Blocking High-Throughput Sender Engine**:
+   - Sender streams dynamically-sized chunks (1–4 MB) directly into the TCP socket buffer and completes its session as soon as all frames are flushed, delivering maximum asynchronous network throughput.
+8. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived symmetrically from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
+9. Implement **Transparent Error Handling** (`RELAY_NETWORK_ERROR`, `PIN_FORMAT_INVALID`, `PIN_EXPIRED`, `PIN_TIMEOUT`).
+10. Wrap in `NeReSendTransport` (`WormholeTransitTransport`) to power `NeReSendProtocolEngine`.
 
 ---
 
@@ -38,147 +39,104 @@ This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataCha
 lib/
 ├── data/
 │   ├── discovery/
-│   │   └── remote_discovery_driver.dart  # Coordinates ephemeral session creation & PIN lookup
+│   │   └── remote_discovery_driver.dart  # Ephemeral PIN generation & countdown timer
 │   └── transports/
-│       └── webrtc/
-│           ├── webrtc_transport.dart     # Implements NeReSendTransport over Dual RTCDataChannels
-│           ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle, STUN/TURN & ICE gatherer
-│           ├── remote_signaling_client.dart # HTTP pub/sub client for cloud signaling relay rendezvous
-│           ├── webrtc_backpressure_streamer.dart # BufferedAmount watcher throttle loop
-│           ├── webrtc_chunk_reassembler.dart # Sub-packet reassembly & integrity verifier
-│           └── sas_generator.dart        # Derives 3-emoji SAS from DTLS fingerprints
+│       └── wormhole/
+│           ├── wormhole_transit_transport.dart # Implements NeReSendTransport over spliced TCP socket
+│           └── wormhole_connection_manager.dart # Outbound TCP connect, token handshake & stream splicing
 └── presentation/
     ├── screens/
     │   └── remote_tab_screen.dart        # Reactive Remote Tab with 5-minute countdown & QR scan button
     └── widgets/
         ├── qr_code_card.dart             # Receiver pairing QR Code renderer
         └── qr_scanner_dialog.dart        # Cross-platform live camera & image QR code scanner
+```
 
 ---
 
-## ☁️ Cloud Signaling Rendezvous Architecture
+## ☁️ Magic Wormhole Transit Rendezvous Architecture
 
 ```text
-                  INTERNET (Signaling Phase Only)
-                                 │
-                      ┌──────────▼──────────┐
-                      │  Signaling Relay    │
-                      │  (HTTP / Ephemeral) │
-                      │  PIN Topic: Offer   │
-                      │  Ans Topic: Answer  │
-                      └───────┬───────┬─────┘
-                              │       │
-                          signaling signaling
-                              │       │
-                      ┌───────▼──┐ ┌──▼────────┐
-                      │ Device A │ │ Device B  │
-                      │ Receiver │ │ Sender    │
-                      └───────┬──┘ └──┬────────┘
-                              │       │
-                              ▼       ▼
-                      ┌───────────────────────┐
-                      │    WebRTC ICE / STUN  │
-                      └───────────┬───────────┘
-                                  │
-                          Can connect directly?
-                             /         \
-                           YES          NO
-                            │            │
-                            ▼            ▼
-                       Direct P2P    TURN Relay
-                            │            │
-                            └─────┬──────┘
-                                  ▼
-                    RFC 8831 Dual DataChannels
-                     (DTLS / SCTP over UDP)
-                                  │
-                          Direct P2P Files
+                  MAGIC WORMHOLE TRANSIT RELAY (Port 4001)
+                                     │
+                  ┌──────────────────▼──────────────────┐
+                  │   Rendezvous & Stream Splice Hub    │
+                  │   Token: SHA-256(neresend-transit)  │
+                  └─────────┬─────────────────┬─────────┘
+                            │                 │
+                Outbound TCP│                 │Outbound TCP
+                (Side A)    │                 │(Side B)
+                  ┌─────────▼────────┐   ┌────▼─────────────┐
+                  │ Device A (Host)  │   │ Device B (Sender)│
+                  │ (Linux / Wi-Fi)  │   │ (Android / 4G-5G)│
+                  └─────────┬────────┘   └────┬─────────────┘
+                            │                 │
+                            └=================┘
+                     End-to-End Encrypted Duplex Stream
+                  (NeReSend Binary Framing & SAS Emojis)
 ```
 
----
-
-## 🌐 WebRTC Pipeline & RFC 8831 Dual Streams
-
+### 1. The Deterministic 3-Step Handshake Protocol
+```text
+1. Receiver (Host)           2. Transit Relay (:4001)        3. Sender (Client)
+   │                               │                               │
+   ├─ Socket.connect(relay:4001) ─►│                               │
+   ├─ "please relay <T> for A\n" ─►│ (Stored on token room)        │
+   │                               │                               │
+   │                               │ ◄─ Socket.connect(relay:4001) ┤
+   │                               │ ◄─ "please relay <T> for B\n" ┤
+   │                               ├─ Token matched!               │
+   │ ◄── "ok\n" ───────────────────┤                               │
+   │                               ├── "ok\n" ────────────────────►│
+   │                               │                               │
+   ├─ (Derive SAS Emojis)          │ (Relay blindly splices bytes) ├─ (Derive SAS Emojis)
+   ▼                               ▼                               ▼
+   └────────────── Single Continuous Framed ByteStream ────────────┘
 ```
-                      SINGLE WEBRTC PEER CONNECTION (DTLS / UDP)
-                                           │
-          ┌────────────────────────────────┴────────────────────────────────┐
-          ▼                                                                 ▼
-┌─────────────────────────────────┐                       ┌─────────────────────────────────┐
-│ Control Channel (SCTP Stream 0) │                       │ Data Channel (SCTP Stream 1)    │
-│  • Label: 'control'             │                       │  • Label: 'data'                │
-│  • Ordered + Reliable           │                       │  • Ordered + Reliable           │
-│  • Manifest, Accept, Decline    │                       │  • 1–4 MB Dynamic Binary Chunks │
-│  • Instant PAUSE / CANCEL / SAS │                       │  • Backpressure Throttle Loop   │
-└─────────────────────────────────┘                       └─────────────────────────────────┘
-```
 
-### 1. Application-Level Stream Isolation
-* **Why it matters:** On lossy 4G/5G connections, packet loss on the `'data'` stream will cause TCP/SCTP re-ordering on that stream. Because `'control'` runs on independent **SCTP Stream 0**, control packets (like `CANCEL` or `PAUSE`) are processed immediately without waiting for bulk data re-ordering at the stream sequencing layer.
-
-### 2. Backpressure Flow Control & 64 KB Sub-Packetization Algorithm
+### 2. Single Continuous Socket Stream Invariant
+In Dart `dart:io`, `Socket` is a single-subscription stream. Cancelling a listener permanently closes the stream. `WormholeConnectionManager` ensures a seamless stream transition:
 ```dart
-class WebRtcBackpressureStreamer {
-  static const int maxBufferedBytes = 1024 * 1024; // 1 MB Backpressure Threshold
-  static const int maxDataChannelPacketSize = 64 * 1024; // 64 KB MTU for libwebrtc
+final socket = await Socket.connect(transitHost, transitPort);
+final streamController = StreamController<List<int>>();
 
-  /// Streams an application-level chunk (1–4 MB) sub-packetized into 64 KB wire frames
-  Future<void> sendChunkSubPacketized(
-    RTCDataChannel dataChannel,
-    int fileIndex,
-    int chunkIndex,
-    Uint8List chunkBytes,
-  ) async {
-    final totalLen = chunkBytes.length;
-    int offset = 0;
-
-    while (offset < totalLen) {
-      // Backpressure: Suspend sender read loop until native C++ buffers drain below 1 MB
-      while (dataChannel.bufferedAmount > maxBufferedBytes) {
-        await dataChannel.onBufferedAmountReceive;
+// Single persistent listener across handshake AND file transfer
+socket.listen(
+  (data) {
+    if (!handshakeCompleted) {
+      buffer.addAll(data);
+      if (bufferContainsDelimiter) {
+        handshakeCompleted = true;
+        final remainder = extractRemainderBytes(buffer);
+        if (remainder.isNotEmpty) streamController.add(remainder);
       }
-
-      final sliceEnd = math.min(offset + maxDataChannelPacketSize, totalLen);
-      final slice = chunkBytes.sublist(offset, sliceEnd);
-
-      // Packet Header: [4B FileIdx] [4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Slice]
-      final wirePacket = buildSubPacket(fileIndex, chunkIndex, offset, totalLen, slice);
-      dataChannel.send(RTCDataChannelMessage.fromBinary(wirePacket));
-
-      offset = sliceEnd;
+    } else {
+      streamController.add(data);
     }
-  }
-}
+  },
+  onDone: () => streamController.close(),
+  onError: (err) => streamController.addError(err),
+);
 ```
 
 ### 3. SAS (Short Authentication String) Emoji Generation
 * Computed as:
-  $$\text{SAS Hash} = \text{SHA-256}(\text{Local\_DTLS\_Fingerprint} \parallel \text{Remote\_DTLS\_Fingerprint} \parallel \text{Session\_PIN})$$
+  $$\text{SAS Hash} = \text{SHA-256}(\text{Local\_Fingerprint} \parallel \text{Remote\_Fingerprint} \parallel \text{PIN})$$
 * Maps the first 3 bytes of the hash into an emoji dictionary of 64 distinct visual symbols (e.g. `🌟 🚀 🎸`). Both peers confirm matching emojis on screen before transfer begins.
 
 ---
 
 ## 🧪 Verification & Network Simulation Tests
 
-- [x] `test/data/remote_signaling_client_test.dart`:
-  - Validates 5-minute session countdown & auto-cleanup.
-  - Validates 128-bit session ID, token generation, and QR URI formatting.
-  - Validates 3-strike invalid entry code auto-destruction.
+- [x] `test/data/wormhole_transit_transport_test.dart`:
+  - Validates `FakeTransitRelayServer` in-memory transit relay token matching.
+  - Validates `WormholeConnectionManager` side negotiation and `ok\n` handshake.
+  - Validates `WormholeTransitTransport` binary frame transmission, chunk parsing, and closing.
+- [x] `test/integration/wormhole_remote_transfer_test.dart`:
+  - Full end-to-end 250 KB file transfer over transit relay with SHA-256 integrity verification.
 - [x] `test/data/remote_discovery_driver_test.dart`:
-  - Validates host session creation, PIN matching, and QR pairing.
-- [x] `test/data/webrtc_connection_manager_test.dart`:
-  - Validates data-only SDP constraints (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`).
-  - Validates idempotent connection and channel teardown.
+  - Validates host session creation, PIN normalization, countdown progression, and QR pairing.
 - [x] `test/presentation/remote_tab_lifecycle_test.dart`:
-  - Validates provider loading, error, and ready state transitions.
-  - Validates countdown timer progression.
-  - Validates sequential "New PIN" regeneration and button lockout.
-  - Validates QR code scanner button rendering and integration in Send card.
+  - Validates provider loading, ready state transitions, countdown timer progression, and sequential "New PIN" regeneration.
 - [x] `test/data/sas_generator_test.dart`:
-  - Consistent bidirectional 3-emoji generation given identical DTLS fingerprints.
-- [x] `test/data/webrtc_backpressure_test.dart`:
-  - Verifies sender suspends chunk reading when `bufferedAmount > 1 MB`.
-  - Verifies total memory consumption stays $< 15\text{ MB}$ even when sending 1 GB synthetic streams.
-- [x] `test/integration/remote_webrtc_transfer_test.dart`:
-  - Full end-to-end file exchange over simulated WebRTC loopback channels with 50ms latency and 2% packet loss.
-
+  - Consistent bidirectional 3-emoji generation given identical fingerprints and session PIN.

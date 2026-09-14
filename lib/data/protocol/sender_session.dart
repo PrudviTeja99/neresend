@@ -91,7 +91,9 @@ class SenderSession {
       await _streamAllFiles(acceptedRanges);
 
       if (!_isCancelled) {
-        // 4. Send Transfer Complete
+        // Wait for all data chunk packets to drain from transport buffer
+        await transport.flush();
+        // 4. Send Transfer Complete to receiver
         await transport
             .sendFrame(FrameWriter.createTransferComplete(manifest.transferId));
         _emitProgress(TransferStatus.completed, manifest.totalBytes);

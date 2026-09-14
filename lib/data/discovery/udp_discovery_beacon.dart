@@ -9,7 +9,7 @@ import '../../../domain/models/transfer_mode.dart';
 
 /// UDP Multicast and Broadcast beacon for local network peer discovery
 class UdpDiscoveryBeacon {
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final int listeningPort;
   final int tcpServicePort;
 
@@ -22,10 +22,20 @@ class UdpDiscoveryBeacon {
       StreamController<List<DiscoveredPeer>>.broadcast();
 
   UdpDiscoveryBeacon({
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.listeningPort = AppConstants.udpDiscoveryPort,
     this.tcpServicePort = AppConstants.tcpTlsPort,
-  });
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  /// Updates local identity and immediately broadcasts new beacon to nearby peers
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+    if (isRunning) {
+      broadcastBeacon();
+    }
+  }
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
   List<DiscoveredPeer> get currentPeers =>

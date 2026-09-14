@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
-/// Generates a deterministic 3-emoji Short Authentication String (SAS) from DTLS public keys and session PIN
+/// Generates a deterministic 3-emoji Short Authentication String (SAS) from public key fingerprints and session PIN
 class SasGenerator {
   SasGenerator._();
 
@@ -48,3 +48,4 @@ class SasGenerator {
     return emojis.join(' ');
   }
 }
+

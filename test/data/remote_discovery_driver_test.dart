@@ -1,121 +1,88 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neresend/data/discovery/remote_discovery_driver.dart';
-import 'package:neresend/data/transports/webrtc/remote_signaling_client.dart';
 import 'package:neresend/domain/models/device_identity.dart';
+import 'package:neresend/domain/models/discovered_peer.dart';
+import 'package:neresend/domain/models/remote_session_info.dart';
 import 'package:neresend/domain/models/transfer_mode.dart';
 
 void main() {
-  late RemoteSignalingClient signalingClient;
   late RemoteDiscoveryDriver hostDriver;
-  late RemoteDiscoveryDriver clientDriver;
 
   final hostIdentity = DeviceIdentity(
     deviceId: 'host-id-1',
     alias: 'Host Alpha',
-    publicKeyBase64: 'host-key',
+    publicKeyBase64: base64Encode(List.filled(32, 1)),
     fingerprint: '11:11:11:11:11:11',
     publicKeyBytes: List.filled(32, 1),
   );
 
-  final clientIdentity = DeviceIdentity(
-    deviceId: 'client-id-2',
-    alias: 'Client Beta',
-    publicKeyBase64: 'client-key',
-    fingerprint: '22:22:22:22:22:22',
-    publicKeyBytes: List.filled(32, 2),
-  );
-
   setUp(() {
-    signalingClient = RemoteSignalingClient();
     hostDriver = RemoteDiscoveryDriver(
       localIdentity: hostIdentity,
-      signalingClient: signalingClient,
-    );
-    clientDriver = RemoteDiscoveryDriver(
-      localIdentity: clientIdentity,
-      signalingClient: signalingClient,
     );
   });
 
   tearDown(() async {
     await hostDriver.dispose();
-    await clientDriver.dispose();
   });
 
   group('RemoteDiscoveryDriver Tests', () {
-    test('Host creates PIN session and client pairs successfully via PIN',
-        () async {
+    test('Host sets active session and retrieves PIN and session info', () async {
       await hostDriver.startDiscovery();
-      await clientDriver.startDiscovery();
 
-      final sessionInfo =
-          await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host');
-      expect(hostDriver.activeHostPin, sessionInfo.pin);
-      expect(sessionInfo.sessionId.isNotEmpty, isTrue);
-
-      final pairResult = await clientDriver.pairWithPin(
-        pinOrUri: sessionInfo.pin,
+      final sessionInfo = RemoteSessionInfo(
+        sessionId: 'sess-123',
+        authToken: 'token-abc',
+        pin: '550 573',
+        inviteUri: 'neresend://pair?session=sess-123&token=token-abc&pin=550573',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
       );
 
-      expect(pairResult.sdpOffer, 'v=0\r\no=host');
-      expect(pairResult.hostPeer.fingerprint, hostIdentity.fingerprint);
-      expect(pairResult.hostPeer.supportedMode, TransferMode.remote);
-      expect(clientDriver.currentPeers.length, 1);
-      expect(clientDriver.currentPeers.first.alias, 'Host Alpha');
-
-      // Client submits real answer
-      await clientDriver.signalingClient.submitAnswer(
-        sessionId: pairResult.sessionInfo.sessionId,
-        sdpAnswer: 'v=0\r\no=client',
-        clientIdentity: clientIdentity,
-      );
-
-      final clientAnswer =
-          await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
-      expect(clientAnswer.sdpAnswer, 'v=0\r\no=client');
-      expect(
-          clientAnswer.clientIdentity?.fingerprint, clientIdentity.fingerprint);
-      expect(hostDriver.currentPeers.length, 1);
-      expect(hostDriver.currentPeers.first.alias, 'Client Beta');
+      hostDriver.setActiveHostSession(sessionInfo);
+      expect(hostDriver.activeHostPin, equals('550 573'));
+      expect(hostDriver.activeHostSession?.sessionId, equals('sess-123'));
+      expect(hostDriver.isDiscovering, isTrue);
     });
 
-    test('Client pairs successfully via QR URI', () async {
-      await hostDriver.startDiscovery();
-      await clientDriver.startDiscovery();
-
-      final sessionInfo =
-          await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host-qr');
-      expect(sessionInfo.inviteUri, startsWith('neresend://pair?session='));
-
-      final pairResult = await clientDriver.pairWithPin(
-        pinOrUri: sessionInfo.inviteUri,
+    test('Registers and removes discovered remote peers', () async {
+      final peer = DiscoveredPeer(
+        id: 'client-1',
+        alias: 'Client Beta',
+        deviceType: DeviceType.android,
+        ipAddress: '0.0.0.0',
+        port: 0,
+        supportedMode: TransferMode.remote,
+        identityPublicKey: base64Encode(List.filled(32, 2)),
+        fingerprint: '22:22:22:22:22:22',
+        lastSeen: DateTime.now(),
       );
 
-      expect(pairResult.sdpOffer, 'v=0\r\no=host-qr');
-      expect(pairResult.sessionInfo.sessionId, sessionInfo.sessionId);
+      hostDriver.registerPeer(peer);
+      expect(hostDriver.currentPeers.length, equals(1));
+      expect(hostDriver.currentPeers.first.alias, equals('Client Beta'));
 
-      await clientDriver.signalingClient.submitAnswer(
-        sessionId: pairResult.sessionInfo.sessionId,
-        sdpAnswer: 'v=0\r\no=client-qr',
-        clientIdentity: clientIdentity,
-      );
-
-      final clientAnswer =
-          await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
-      expect(clientAnswer.sdpAnswer, 'v=0\r\no=client-qr');
-      expect(
-          clientAnswer.clientIdentity?.fingerprint, clientIdentity.fingerprint);
+      hostDriver.removePeer(peer.fingerprint);
+      expect(hostDriver.currentPeers, isEmpty);
     });
 
-    test('Stopping discovery clears active host session and peer lists',
-        () async {
+    test('Stopping discovery clears active host session and peer lists', () async {
       await hostDriver.startDiscovery();
-      await hostDriver.createHostSession(sdpOffer: 'v=0');
+      hostDriver.setActiveHostSession(
+        RemoteSessionInfo(
+          sessionId: 'sess-456',
+          authToken: 'token-xyz',
+          pin: '123 456',
+          inviteUri: 'neresend://pair?session=sess-456&token=token-xyz&pin=123456',
+          createdAt: DateTime.now(),
+        ),
+      );
       expect(hostDriver.activeHostPin, isNotNull);
 
       await hostDriver.stopDiscovery();
       expect(hostDriver.activeHostPin, isNull);
       expect(hostDriver.currentPeers, isEmpty);
+      expect(hostDriver.isDiscovering, isFalse);
     });
   });
 }

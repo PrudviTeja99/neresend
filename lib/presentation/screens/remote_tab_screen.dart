@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../data/services/transfer_orchestrator.dart';
-import '../../data/transports/webrtc/remote_signaling_client.dart';
+import '../../domain/models/remote_session_info.dart';
+import '../state/identity_provider.dart';
 import '../state/orchestrator_provider.dart';
+import '../widgets/edit_device_name_dialog.dart';
 import '../widgets/qr_code_card.dart';
 import '../widgets/qr_scanner_dialog.dart';
 
@@ -104,7 +106,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
 
     final rawInput = _pinController.text.trim();
     final parsed = RemoteSessionInfo.parseInviteUri(rawInput);
-    final normalized = RemoteSignalingClient.normalizePin(parsed.pin);
+    final normalized = RemoteSessionInfo.normalizePin(parsed.pin);
 
     if (parsed.sessionId == null && normalized.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,6 +117,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
 
     final result = await FilePicker.pickFiles();
     if (result.isEmpty) return;
+    if (!mounted || result.isEmpty) return;
 
     final files = result
         .where((file) => file.path != null)
@@ -123,6 +126,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
 
     if (files.isEmpty) return;
 
+    FocusScope.of(context).unfocus();
     setState(() => _isConnecting = true);
 
     try {
@@ -132,18 +136,13 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connected to remote peer! Transfer started.'),
-            backgroundColor: AppColors.readyGreen,
-          ),
-        );
+        _pinController.clear();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Remote pairing failed: $e'),
+            content: Text('Remote connection failed: $e'),
             backgroundColor: AppColors.offlineRed,
           ),
         );
@@ -205,6 +204,7 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
           });
         }
 
+        final identityAsync = ref.watch(identityStateProvider);
         final inviteUri = _sessionInfo?.inviteUri ??
             'neresend://pair?session=init&pin=${_generatedPin.replaceAll(' ', '')}';
 
@@ -216,6 +216,76 @@ class _RemoteTabScreenState extends ConsumerState<RemoteTabScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Device Identity Banner
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.surfaceHighlight),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.devices_rounded,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'YOUR DEVICE NAME',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textMuted,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                identityAsync.value?.alias ?? 'NeReSend Device',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            final currentAlias =
+                                identityAsync.value?.alias ?? '';
+                            EditDeviceNameDialog.show(context,
+                                currentAlias: currentAlias);
+                          },
+                          icon: const Icon(Icons.edit_rounded, size: 14),
+                          label: const Text('Edit',
+                              style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   // Card A: Receive Remotely (QR + PIN)
                   Card(
                     child: Padding(

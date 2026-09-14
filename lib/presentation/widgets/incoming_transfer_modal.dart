@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -175,12 +176,17 @@ class _IncomingTransferModalState extends State<IncomingTransferModal> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () async {
-                        if (orchestrator != null) {
-                          await orchestrator.declineTransfer(
-                              widget.prompt.request.transferId);
-                        }
+                      onPressed: () {
+                        final transferId = widget.prompt.request.transferId;
                         if (context.mounted) Navigator.pop(context);
+                        if (orchestrator != null) {
+                          unawaited(orchestrator
+                              .declineTransfer(transferId)
+                              .catchError((e) {
+                            debugPrint(
+                                '[TRANSFER MODAL] Error declining transfer: $e');
+                          }));
+                        }
                       },
                       child: const Text('Decline'),
                     ),
@@ -195,15 +201,25 @@ class _IncomingTransferModalState extends State<IncomingTransferModal> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () async {
-                        if (orchestrator != null) {
-                          await orchestrator.acceptTransfer(
-                            widget.prompt.request.transferId,
-                            rememberDevice: _rememberDevice,
-                            senderFingerprint: widget.prompt.senderFingerprint,
-                          );
-                        }
+                      onPressed: () {
+                        final transferId = widget.prompt.request.transferId;
+                        final remember = _rememberDevice;
+                        final senderFp = widget.prompt.senderFingerprint;
                         if (context.mounted) Navigator.pop(context);
+                        if (orchestrator != null) {
+                          unawaited(() async {
+                            try {
+                              await orchestrator.acceptTransfer(
+                                transferId,
+                                rememberDevice: remember,
+                                senderFingerprint: senderFp,
+                              );
+                            } catch (e) {
+                              debugPrint(
+                                  '[TRANSFER MODAL] Error accepting transfer: $e');
+                            }
+                          }());
+                        }
                       },
                       child: const Text('Accept & Save',
                           style: TextStyle(fontWeight: FontWeight.w700)),

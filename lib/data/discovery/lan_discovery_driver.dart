@@ -8,7 +8,7 @@ import 'udp_discovery_beacon.dart';
 
 /// Aggregates mDNS and UDP Multicast Discovery into a unified PeerDiscoveryPort
 class LanDiscoveryDriver implements PeerDiscoveryPort {
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final int tcpPort;
 
   late final UdpDiscoveryBeacon _udpBeacon;
@@ -24,17 +24,26 @@ class LanDiscoveryDriver implements PeerDiscoveryPort {
   bool _isDiscovering = false;
 
   LanDiscoveryDriver({
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.tcpPort = 53318,
-  }) {
+  }) : _localIdentity = localIdentity {
     _udpBeacon = UdpDiscoveryBeacon(
-      localIdentity: localIdentity,
+      localIdentity: _localIdentity,
       tcpServicePort: tcpPort,
     );
     _mdnsDiscovery = MdnsDiscovery(
-      localIdentity: localIdentity,
+      localIdentity: _localIdentity,
       tcpPort: tcpPort,
     );
+  }
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  /// Updates local identity across UDP beacon and mDNS
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+    _udpBeacon.updateIdentity(newIdentity);
+    _mdnsDiscovery.updateIdentity(newIdentity);
   }
 
   @override

@@ -20,8 +20,9 @@ This document details the phased implementation plan, platform dependencies, pro
 * **Bluetooth Low Energy (BLE):**
   * `flutter_reactive_ble` or platform-specific MethodChannels for advertising & scanning
 * **Remote Internet P2P:**
-  * `flutter_webrtc` (RFC 8831 Dual-Channel SCTP over DTLS over UDP: `'control'` + `'data'`)
-  * `web_socket_channel` (Lightweight WebSocket signaling client for 10-min PIN & SDP exchange)
+  * `dart:io` (`Socket` for raw outbound TCP connections to Magic Wormhole Transit Relay: `transit.magic-wormhole.io:4001`)
+  * Deterministic SHA-256 token rendezvous (`SHA-256("neresend-transit-$normalizedPin")`)
+  * SAS 3-Emoji visual verification (`SHA-256(localFingerprint || remoteFingerprint || PIN)`)
 * **Storage & UI:**
   * `file_picker` for selecting files & directories
   * `path_provider` & `open_filex` for local file storage & previews
@@ -39,7 +40,7 @@ This document details the phased implementation plan, platform dependencies, pro
 │ LAN Multicast / TLS Stream   │ dart:io sockets  │ dart:io sockets  │ dart:io sockets  │
 │ BLE Scan & Advertise         │ Android BLE APIs │ BlueZ (D-Bus)    │ WinRT Bluetooth  │
 │ SoftAP / Wi-Fi Direct        │ LocalOnlyHotspot │ nmcli / D-Bus    │ WlanHostedNetwork│
-│ WebRTC Native Shared Lib     │ libwebrtc.so     │ libwebrtc.so     │ webrtc.dll       │
+│ Magic Wormhole Transit Relay │ Pure Dart Socket │ Pure Dart Socket │ Pure Dart Socket │
 │ Secure Keystore Storage      │ Android KeyStore │ Secret Service   │ Windows DPAPI    │
 │ Background / Wake-Lock       │ Foreground Svc   │ D-Bus Inhibitor  │ Win32 ExecState  │
 │ Storage Model                │ SAF / Scoped     │ Standard POSIX   │ Standard Win32   │
@@ -105,10 +106,9 @@ FileSharing/
 │   │   │   │   ├── linux_nm_adapter.dart        # NetworkManager D-Bus AP creation
 │   │   │   │   ├── windows_direct_adapter.dart  # WinRT WiFiDirect / Hotspot APIs
 │   │   │   │   └── unsupported_direct_adapter.dart # Reports DIRECT_LINK_UNAVAILABLE
-│   │   │   └── webrtc/                       # Driver 3 WebRTC Transport
-│   │   │       ├── webrtc_transport.dart     # DropFlowTransport over RFC 8831 Dual DataChannels
-│   │   │       ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle & ICE manager
-│   │   │       └── remote_signaling_client.dart # HTTP Pub/Sub SDP & ICE exchange client
+│   │   │   └── wormhole/                     # Driver 3 Magic Wormhole Transit Transport
+│   │   │       ├── wormhole_transit_transport.dart # NeReSendTransport over connected raw TCP socket
+│   │   │       └── wormhole_connection_manager.dart # Outbound TCP connect, token handshake & stream splicing
 │   │   ├── protocol/                # NETWORK-AGNOSTIC TRANSFER ENGINE & FRAMING
 │   │   │   ├── neresend_protocol_engine.dart # Agnostic transfer state machine (Sender/Receiver)
 │   │   │   ├── frame_codec.dart              # FrameReader & FrameWriter (5-byte binary header)
@@ -183,26 +183,25 @@ FileSharing/
 * [ ] Implement role negotiation and dynamic host IP exchange (`NetworkInterface.list()`) over encrypted BLE.
 * [ ] Connect the resulting Direct Link socket directly to `LocalTlsTransport`.
 
-### Phase 5: Driver 3 — Remote WebRTC P2P Engine & Cloud Signaling Bridge
-* [ ] Implement `RemoteSignalingClient` WebSocket adapter for ephemeral cloud signaling (PIN/Token rendezvous & SDP/ICE candidate routing).
-* [ ] Implement human-friendly rendezvous model: 6-digit PIN pointer, 128-bit session tokens, 5-minute single-use session countdown.
-* [ ] Implement structured QR Code pairing (`neresend://pair?session=<id>&token=<token>&pin=<code>`) for instant 1-tap mobile pairing.
-* [ ] Configure WebRTC `RTCPeerConnection` with Google STUN servers (`stun.l.google.com:19302`) and TURN relay fallback for strict symmetric NATs.
-* [ ] Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on offer/answer generation to eliminate audio subsystem / ADM initialization on desktop/Linux.
-* [ ] Implement centralized, idempotent WebRTC connection lifecycle teardown (`disposeConnection()`) for sequential regeneration, expiration, and tab disposal.
-* [ ] Implement `WebRtcTransport` implementing `NeReSendTransport` over RFC 8831 Dual DataChannels:
-  * `'control'` channel: Priority commands (`CANCEL`, `PAUSE`, `MANIFEST`, SAS emojis).
-  * `'data'` channel: Bulk binary payload with $\le 64\text{ KB}$ sub-packetization and `bufferedAmountLowThreshold` (1 MB) backpressure.
-* [ ] Implement 3-strike rate-limiting and SAS emoji verification (`🌟 🚀 🎸`).
+### Phase 5: Driver 3 — Remote Internet Magic Wormhole Transit Relay Engine
+* [x] Implement `WormholeConnectionManager` for outbound TCP socket connections to `transit.magic-wormhole.io:4001`.
+* [x] Implement deterministic 3-step transit handshake (`please relay <token> for side <sideId>\n` $\rightarrow$ `ok\n`).
+* [x] Implement human-friendly rendezvous model: 6-digit PIN pointer, 5-minute single-use session countdown.
+* [x] Implement structured QR Code pairing (`neresend://pair?session=<id>&token=<token>&pin=<code>`) for instant 1-tap mobile pairing.
+* [x] Implement `WormholeTransitTransport` wrapping the spliced TCP socket stream with single-subscription listener to prevent stream exhaustion.
+* [x] Run `NeReSendProtocolEngine` directly over the authenticated transit stream with Dynamic Chunking (1–4 MB) and Sparse Range Resumption.
+* [x] Maintain non-blocking sender chunk streaming for maximum network throughput.
+* [x] Implement SAS 3-emoji verification (`🌟 🚀 🎸`) derived symmetrically from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
+* [x] Implement 3-strike rate-limiting and auto-destruction on failed PIN attempts.
 
 ### Phase 6: Orchestration, UI Integration & Multiplatform Packaging
-* [ ] Implement `IdentityService` with TOFU (Trust-On-First-Use) fingerprint pinning and "Trusted Device" safe auto-accept.
-* [ ] Implement `TransferOrchestrator` with local failover (LAN $\rightarrow$ Direct Hotspot), simultaneous open tie-breaking, and storage space validation.
-* [ ] Build the **Docked Mini-Player Bar** and expanded progress dashboard with live MB/s, ETA, and cancellation.
-* [ ] Implement `NearbyScreen` radar animations and traffic-light readiness state machine (`🟢/🟡/🔴`).
-* [ ] Implement `RemoteTabScreen` with reactive Riverpod lifecycle, 5-minute PIN generation/pairing, dynamic QR code card (`QrCodeCard`), and cross-platform QR camera/image scanner modal (`QrScannerDialog`).
-* [ ] Acquire power wake locks (`PowerManagementService`) to keep Wi-Fi and CPU active during background transfers.
-* [ ] Multiplatform packaging and cross-platform verification matrix.
+* [x] Implement `IdentityService` with TOFU (Trust-On-First-Use) fingerprint pinning and "Trusted Device" safe auto-accept.
+* [x] Implement `TransferOrchestrator` with local failover (LAN $\rightarrow$ Direct Hotspot), simultaneous open tie-breaking, and storage space validation.
+* [x] Build the **Docked Mini-Player Bar** and expanded progress dashboard with live MB/s, ETA, and cancellation.
+* [x] Implement `NearbyScreen` radar animations and traffic-light readiness state machine (`🟢/🟡/🔴`).
+* [x] Implement `RemoteTabScreen` with reactive Riverpod lifecycle, 5-minute PIN generation/pairing, dynamic QR code card (`QrCodeCard`), and cross-platform QR camera/image scanner modal (`QrScannerDialog`).
+* [x] Acquire power wake locks (`PowerManagementService`) to keep Wi-Fi and CPU active during background transfers.
+* [x] Multiplatform packaging and cross-platform verification matrix.
 
 ---
 
@@ -213,5 +212,6 @@ FileSharing/
 | **Unit Tests** | Dynamic chunk sizer invariant tests, Ed25519 signature verification, `ChunkRange` interval math | `flutter_test` |
 | **Sparse Resume Tests** | Inject simulated socket drops at arbitrary chunk offsets and verify hole-filling without re-downloading existing ranges | Custom mock socket loopback harness |
 | **Security Tests** | MitM test harness: Inject forged self-signed certificate and confirm TLS handshake aborts | Custom invalid-cert mock socket |
-| **WebRTC Dual-Channel** | Verify `< 20ms` cancel command execution over `'control'` channel during full payload saturation | Mock latency / packet-loss test harness |
+| **Transit Relay Tests** | In-memory `FakeTransitRelayServer` testing transit token matching, side splicing, and stream re-entry | `test/data/wormhole_transit_transport_test.dart` |
+| **Remote Integration Tests** | Full 250 KB file transfer over transit relay with SHA-256 integrity verification | `test/integration/wormhole_remote_transfer_test.dart` |
 | **End-to-End Tests** | Full file transfer lifecycle (Radar $\rightarrow$ Handshake $\rightarrow$ Stream $\rightarrow$ Verify $\rightarrow$ Save) | Real devices across Android, Linux, and Windows |

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/device_name_generator.dart';
 import '../state/identity_provider.dart';
 import '../state/orchestrator_provider.dart';
 import '../state/trusted_device_provider.dart';
@@ -100,7 +101,7 @@ class _SettingsModalState extends State<SettingsModal> {
 
                   identityAsync.when(
                     data: (identity) {
-                      if (!_isEditingAlias && _aliasController.text.isEmpty) {
+                      if (!_isEditingAlias) {
                         _aliasController.text = identity.alias;
                       }
 
@@ -136,12 +137,28 @@ class _SettingsModalState extends State<SettingsModal> {
                                           ),
                                         ),
                                 ),
+                                if (_isEditingAlias)
+                                  IconButton(
+                                    icon: const Text('🎲',
+                                        style: TextStyle(fontSize: 16)),
+                                    tooltip: 'Randomize Name',
+                                    onPressed: () {
+                                      final rName = DeviceNameGenerator
+                                          .generateRandomName();
+                                      setState(() {
+                                        _aliasController.text = rName;
+                                      });
+                                    },
+                                  ),
                                 IconButton(
                                   icon: Icon(
                                     _isEditingAlias ? Icons.check : Icons.edit,
                                     size: 18,
                                     color: AppColors.primary,
                                   ),
+                                  tooltip: _isEditingAlias
+                                      ? 'Save Name'
+                                      : 'Edit Name',
                                   onPressed: () async {
                                     if (_isEditingAlias) {
                                       final newAlias =

@@ -2,27 +2,37 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../../../core/protocol/neresend_frame.dart';
 import '../../../core/protocol/frame_reader.dart';
 import '../../../core/protocol/frame_writer.dart';
+import '../../../core/protocol/neresend_frame.dart';
 import '../../../domain/contracts/neresend_transport.dart';
-import 'auth_handshake_handler.dart';
 
-/// Concrete NeReSendTransport implementation wrapping an authenticated TLS 1.3 SecureSocket
-class LocalTlsTransport implements NeReSendTransport {
-  final SecureSocket _socket;
-  AuthResult? authResult;
+/// Full-duplex transport wrapping a connected Magic Wormhole transit relay socket
+class WormholeTransitTransport implements NeReSendTransport {
+  final Socket _socket;
+  final Stream<List<int>> _byteStream;
+  final String sideId;
+  final String pin;
+  final String remoteFingerprint;
+  final String localFingerprint;
+  final String sasEmojis;
+
   final StreamController<NeReSendFrame> _frameController =
       StreamController<NeReSendFrame>.broadcast();
-  StreamSubscription<NeReSendFrame>? _rawSubscription;
+  StreamSubscription<NeReSendFrame>? _frameSubscription;
   bool _closed = false;
 
-  LocalTlsTransport({
-    required SecureSocket socket,
-    this.authResult,
-  }) : _socket = socket {
-    _rawSubscription =
-        _socket.cast<List<int>>().transform(const FrameReader()).listen(
+  WormholeTransitTransport({
+    required Socket socket,
+    required Stream<List<int>> byteStream,
+    required this.sideId,
+    required this.pin,
+    required this.remoteFingerprint,
+    required this.localFingerprint,
+    required this.sasEmojis,
+  })  : _socket = socket,
+        _byteStream = byteStream {
+    _frameSubscription = _byteStream.transform(const FrameReader()).listen(
       _frameController.add,
       onError: _frameController.addError,
       onDone: () {
@@ -41,7 +51,7 @@ class LocalTlsTransport implements NeReSendTransport {
 
   @override
   Future<void> sendFrame(NeReSendFrame frame) async {
-    if (_closed) throw StateError('LocalTlsTransport is closed');
+    if (_closed) throw StateError('WormholeTransitTransport is closed');
     _socket.add(frame.toWireBytes());
     await _socket.flush();
   }
@@ -49,7 +59,7 @@ class LocalTlsTransport implements NeReSendTransport {
   @override
   Future<void> sendDataChunk(
       int fileIdx, int chunkIdx, Uint8List chunkBytes) async {
-    if (_closed) throw StateError('LocalTlsTransport is closed');
+    if (_closed) throw StateError('WormholeTransitTransport is closed');
     final frame = FrameWriter.createFileDataChunk(
       fileIndex: fileIdx,
       chunkIndex: chunkIdx,
@@ -71,8 +81,10 @@ class LocalTlsTransport implements NeReSendTransport {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
-    await _rawSubscription?.cancel();
-    await _socket.close();
+    await _frameSubscription?.cancel();
+    try {
+      await _socket.close();
+    } catch (_) {}
     _socket.destroy();
     if (!_frameController.isClosed) {
       await _frameController.close();

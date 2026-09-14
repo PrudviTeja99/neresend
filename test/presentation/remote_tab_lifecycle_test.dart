@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:neresend/data/transports/webrtc/remote_signaling_client.dart';
+import 'package:neresend/domain/models/remote_session_info.dart';
 import 'package:neresend/presentation/screens/remote_tab_screen.dart';
 import 'package:neresend/presentation/state/orchestrator_provider.dart';
 import 'package:neresend/data/services/transfer_orchestrator.dart';

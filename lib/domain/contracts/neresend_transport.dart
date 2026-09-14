@@ -12,10 +12,12 @@ abstract class NeReSendTransport {
   /// Send a bulk binary chunk with backpressure flow control
   Future<void> sendDataChunk(int fileIdx, int chunkIdx, Uint8List chunkBytes);
 
+  /// Flush and await any in-flight data buffers to drain
+  Future<void> flush() async {}
+
   /// Gracefully close the transport connection
   Future<void> close();
 
   /// True if the transport is open and active
   bool get isConnected;
 }
-

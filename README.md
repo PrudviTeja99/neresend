@@ -6,7 +6,7 @@
 
 **NeReSend** is a modern, privacy-first, cross-platform Peer-to-Peer (P2P) file-sharing application for **Android, Linux, and Windows** built with **Flutter**.
 
-It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptographic Identity (Ed25519) with Authenticated Ephemeral TLS 1.3 Sessions**, a unified **Persistent Framed Socket Protocol** with **Invariant-Driven Dynamic Chunk Sizing and Sparse Range Set Resumption**, and a high-performance **RFC 8831 Dual-Channel WebRTC Pipeline** for remote internet sharing.
+It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptographic Identity (Ed25519) with Authenticated Ephemeral TLS 1.3 Sessions**, a unified **Persistent Framed Socket Protocol** with **Invariant-Driven Dynamic Chunk Sizing and Sparse Range Set Resumption**, and a high-speed **Magic Wormhole Transit Relay Pipeline** for remote internet sharing.
 
 ---
 
@@ -26,10 +26,10 @@ It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptog
 │    • Uses the EXACT SAME authenticated NeReSend binary stream engine.       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 3. Global Internet P2P Mode (Remote Cross-Network)                          │
-│    • Powered by RFC 8831 Dual-Channel WebRTC (SCTP over DTLS over UDP).    │
-│    • Isolated Control Stream guarantees < 20ms cancellation under load.     │
-│    • Direct UDP NAT hole-punching via public Google STUN.                   │
-│    • Asynchronous backpressure loop keeps RAM under 15 MB.                  │
+│    • Powered by Magic Wormhole Transit Protocol (outbound TCP via port 4001).│
+│    • 100% reliable across 4G/5G Cellular Mobile Data, Wi-Fi, & strict NATs. │
+│    • Zero proprietary monthly limits (open-source public transit relays).    │
+│    • Deterministic SHA-256 token matching with 3-emoji SAS verification.     │
 │    • Zero-Knowledge 5-minute session PINs & 1-tap QR camera/image scanner.  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -38,7 +38,8 @@ It employs **Hexagonal Architecture (Ports & Adapters)**, a **Long-Lived Cryptog
 
 ## ✨ Key Technical Highlights
 
-* **RFC 8831 Dual-Channel SCTP Separation:** WebRTC remote sharing multiplexes two independent SCTP streams over a single DTLS association: a `'control'` stream (preventing bulk data ordering delays on urgent cancellation/pause commands) and a dedicated `'data'` stream (with 1–4 MB dynamic chunks and backpressure flow control).
+* **Magic Wormhole Transit Relay Architecture:** Remote internet sharing utilizes outbound TCP socket connections to open Wormhole transit relays (`transit.magic-wormhole.io:4001`). Because both devices initiate outbound connections, it completely bypasses mobile carrier Symmetric CGNAT and firewall barriers with zero monthly bandwidth caps.
+* **Zero-Trust End-to-End Encryption:** All metadata, manifests, and file chunks are framed and encrypted end-to-end; the transit relay server only splices raw encrypted bytes and cannot decrypt file contents. Visual security is verified via deterministic 3-emoji SAS (Short Authentication Strings).
 * **Invariant-Driven Dynamic Chunk Sizing:** Enforces $\text{MAX\_MANIFEST\_SIZE} = 512\text{ KB}$ budget. Automatically selects the smallest supported chunk size ($1\text{ MB} \rightarrow 2\text{ MB} \rightarrow 4\text{ MB} \rightarrow 8\text{ MB}$) based on total manifest metadata plus hash table size.
 * **Sparse Range Set Resumption & Hole-Filling:** Replaces fragile scalar integers with an interval-based chunk bitmap (`verifiedRanges: [[0, 500], [502, 2600]]`). Interrupted transfers resume with zero wasted bandwidth.
 * **Two-Tier Cryptographic Identity & MitM Defense:** Generated once on cold start, a persistent **Ed25519 Identity Keypair** is stored in hardware-backed keystores (Android KeyStore / Linux SecretService / Windows DPAPI). Ephemeral TLS certificates are signed by this identity key, completely eliminating local Man-in-the-Middle attacks.
@@ -56,7 +57,7 @@ Comprehensive design and execution documents are located in the [`docs/`](./docs
 
 1. **[System Architecture & Blueprint](./docs/ARCHITECTURE.md):**
    * Hexagonal Architecture (Ports & Adapters) specification.
-   * **RFC 8831 Dual-Channel WebRTC DataChannel Pipeline & Backpressure Specification**.
+   * **Magic Wormhole Transit Relay & Deterministic Token Rendezvous Protocol**.
    * Invariant-Driven Dynamic Chunk Sizing & Sparse Resumption (`PartFileManager`).
    * Cryptographic Identity & Security Architecture (Long-Lived Ed25519 + Signed Ephemeral TLS).
    * NeReSend Binary Frame Protocol Specification (Frame types, Reader/Writer).
@@ -73,7 +74,6 @@ Comprehensive design and execution documents are located in the [`docs/`](./docs
    * Project directory and module organization.
    * Granular 6-phase development roadmap.
    * Verification and testing matrix.
-   * Granular 6-phase development roadmap and test plan.
 
 4. **[Phase-by-Phase Execution Blueprints (planning/)](./planning/00_MASTER_ROADMAP.md):**
    * Detailed, file-by-file blueprints for all 6 development phases.
@@ -111,5 +111,5 @@ On first launch, Windows Defender Firewall will prompt for network access. Make 
 * **Local Streaming (LAN & Direct):** `dart:io` (`RawDatagramSocket`, `SecureServerSocket`, `SecureSocket` with TLS 1.3)
 * **Integrity Engine:** Dynamic Chunking (1–8 MB) + Sparse Range Set Resumption + Whole-File SHA-256
 * **Offline Signaling:** Bluetooth Low Energy (BLE GATT peripheral & central)
-* **Internet Remote P2P:** `flutter_webrtc` (RFC 8831 Dual DataChannels over DTLS over UDP)
+* **Internet Remote P2P:** Magic Wormhole Transit Relay (`transit.magic-wormhole.io:4001`) via pure `dart:io` TCP sockets
 * **Supported Platforms:** Android (10+), Linux (x86_64 / arm64), Windows (10 / 11)

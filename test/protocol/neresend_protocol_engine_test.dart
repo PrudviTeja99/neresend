@@ -52,6 +52,9 @@ class MockDuplexTransport implements NeReSendTransport {
   }
 
   @override
+  Future<void> flush() async {}
+
+  @override
   Future<void> close() async {
     _connected = false;
     await _incoming.close();

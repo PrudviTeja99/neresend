@@ -24,6 +24,8 @@ class ReceiverSession {
   final Map<int, List<ChunkRange>> _verifiedRangesMap = {};
   int _totalTransferredBytes = 0;
   bool _isCancelled = false;
+  bool _hasReceivedTransferComplete = false;
+  bool _isFinalizing = false;
   final Completer<void> _completionCompleter = Completer<void>();
 
   ReceiverSession({
@@ -161,23 +163,16 @@ class ReceiverSession {
           totalChunks: item.totalChunks,
           verifiedRanges: updatedRanges,
         );
+
+        if (_hasReceivedTransferComplete && _areAllFilesComplete()) {
+          await _finalizeAllFiles();
+        }
         break;
 
       case ProtocolConstants.frameTypeTransferComplete:
-        // Sender finished sending all chunks; finalize and verify all files on disk
-        _emitProgress(TransferStatus.verifying, manifest.totalBytes);
-
-        for (int i = 0; i < manifest.files.length; i++) {
-          final item = manifest.files[i];
-          await PartFileManager.finalizeFile(
-            downloadDir: destinationDirectory,
-            item: item,
-          );
-        }
-
-        _emitProgress(TransferStatus.completed, manifest.totalBytes);
-        if (!_completionCompleter.isCompleted) {
-          _completionCompleter.complete();
+        _hasReceivedTransferComplete = true;
+        if (_areAllFilesComplete()) {
+          await _finalizeAllFiles();
         }
         break;
 
@@ -196,6 +191,44 @@ class ReceiverSession {
           _completionCompleter.complete();
         }
         break;
+    }
+  }
+
+  bool _areAllFilesComplete() {
+    for (int i = 0; i < manifest.files.length; i++) {
+      final item = manifest.files[i];
+      final verified = _verifiedRangesMap[i] ?? [];
+      if (!ChunkRange.isComplete(verified, item.totalChunks)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _finalizeAllFiles() async {
+    if (_isFinalizing || _isCancelled) return;
+    _isFinalizing = true;
+
+    _emitProgress(TransferStatus.verifying, manifest.totalBytes);
+
+    for (int i = 0; i < manifest.files.length; i++) {
+      final item = manifest.files[i];
+      await PartFileManager.finalizeFile(
+        downloadDir: destinationDirectory,
+        item: item,
+      );
+    }
+
+    try {
+      await transport.sendFrame(
+        FrameWriter.createTransferComplete(manifest.transferId),
+      );
+      await transport.flush();
+    } catch (_) {}
+
+    _emitProgress(TransferStatus.completed, manifest.totalBytes);
+    if (!_completionCompleter.isCompleted) {
+      _completionCompleter.complete();
     }
   }
 

@@ -15,12 +15,10 @@ DropFlow is built on two distinct, non-overlapping operational contexts:
      *`"Device out of range nearby. Would you like to create a Remote Code to send over the internet? [ 🌐 Send Remotely ]"`*
 2. **Remote is Explicitly Deliberate (Cryptographic Intent):**
    * Scope: Devices in different locations / networks across the WAN.
-   * Transports: **WebRTC RTCDataChannels (SCTP over DTLS over UDP, using the DTLS version negotiated by the WebRTC implementation)** with ICE / STUN / TURN.
-   * Initiated **only** when a user explicitly shares or enters a 10-minute session PIN or scans a QR code.
+   * Transports: **Magic Wormhole Transit Relay Protocol** via outbound TCP sockets to open transit relays (`transit.magic-wormhole.io:4001`) with deterministic SHA-256 token rendezvous.
+   * Initiated **only** when a user explicitly shares or enters a 5-minute session PIN or scans a QR code.
 3. **Invisible Local Networking:**
    * Within the Nearby tab, the user never configures LAN vs. Direct Hotspot. The app picks the fastest local physical route automatically.
-4. **Sparse Chunk Integrity & Zero-Waste Resumption:**
-   * Transfers are verified at 1 MB chunk boundaries in RAM and written sparsely to disk.
 4. **Dynamic Chunk Integrity & Zero-Waste Resumption:**
    * Transfers use **Invariant-Driven Dynamic Chunk Sizing** ($1\text{ MB} - 8\text{ MB}$) to keep handshakes under 512 KB while retaining fine-grained resumption.
    * Interrupted transfers use **Sparse Range Sets** (`verifiedRanges: [[0, 500], [502, 2600]]`) to fill missing holes with zero wasted re-downloads.
@@ -138,7 +136,7 @@ Housed in a dedicated tab with clear separation between **Receiving** and **Send
 │  │                 [ 📁 Select Files & Send → ]           │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                             │
-│         🔒 End-to-end encrypted direct WebRTC transfer       │
+│         🔒 End-to-end encrypted Magic Wormhole transit stream│
 ├─────────────────────────────────────────────────────────────┤
 │          [ 📡 Nearby ]         [ 🌐 Remote (Active) ]       │
 └─────────────────────────────────────────────────────────────┘
@@ -148,20 +146,22 @@ Housed in a dedicated tab with clear separation between **Receiving** and **Send
 ```text
 Remote
 │
-├── Signaling
-│     └── WebSocket (10-minute session PIN matching & SDP exchange)
+├── Signaling & Rendezvous
+│     └── Magic Wormhole Transit Relay Protocol (transit.magic-wormhole.io:4001)
+│          ├── Deterministic Token: SHA-256("neresend-transit-$normalizedPin")
+│          ├── Handshake: "please relay <token> for side <sideId>\n"
+│          └── Splicing: Server responds with "ok\n" and bridges TCP streams
 │
-├── Connectivity
-│     └── ICE (Interactive Connectivity Establishment)
-│          ├── Host candidates (Direct LAN IP)
-│          ├── STUN server-reflexive candidates (Public IP via stun.l.google.com)
-│          └── TURN relay candidates (Fallback if ICE cannot establish a viable direct candidate pair)
+├── Security & Identity
+│     ├── 3-Emoji SAS Verification: SHA-256(localFingerprint || remoteFingerprint || PIN)
+│     ├── Single-use Ephemeral 5-minute PIN countdown
+│     └── 3-Strike Auto-Destruction on invalid PIN attempts
 │
-└── Data
-      └── WebRTC DataChannel
-           └── SCTP
-                └── DTLS (Negotiated by WebRTC implementation)
-                     └── UDP
+└── Data Streaming & Integrity
+      └── NeReSend Framed Binary Protocol
+           ├── Invariant-Driven Dynamic Chunking (1–4 MB)
+           ├── In-Memory Chunk SHA-256 Verification
+           └── Sparse Range Set Resumption via .dropflow.part sidecars
 ```
 
 * **5-Minute Pairing Window:** The 6-digit PIN and dynamic QR code expire after 5 minutes (`Expires in 05:00`) if unused. Senders can tap `[ New PIN ]` to sequentially allocate a new session. Once paired, the transfer session has **no time limit**.
@@ -258,11 +258,11 @@ Remote
 5. If the user clicks `[ Create Remote Code ]`, DropFlow transitions to the Remote tab with the selected files staged for transfer.
 
 ### Flow 4: Remote Internet P2P Transfer (Deliberate PIN / QR)
-1. Receiver opens `[ 🌐 Remote ]` tab $\rightarrow$ reads 6-digit PIN `749 312` to sender.
-2. Sender opens `[ 🌐 Remote ]` tab $\rightarrow$ enters `749 312` and selects files.
-3. WebRTC ICE agent resolves connectivity (Host $\rightarrow$ STUN $\rightarrow$ TURN) and opens the `RTCDataChannel`.
+1. Receiver opens `[ 🌐 Remote ]` tab $\rightarrow$ reads 6-digit PIN `749 312` to sender (or displays QR code).
+2. Sender opens `[ 🌐 Remote ]` tab $\rightarrow$ enters `749 312` (or scans QR) and selects files.
+3. Both devices connect outbound to `transit.magic-wormhole.io:4001` via raw TCP sockets and rendezvous using `SHA-256("neresend-transit-749312")`.
 4. Receiver confirms SAS emojis (`🚀 🌟 🎸`) and accepts transfer.
-5. Transfer streams over SCTP/DTLS/UDP with asynchronous backpressure flow control.
+5. Transfer streams high-speed binary chunks over the spliced duplex stream with non-blocking sender flow and RAM chunk hash verification.
 
 ### Flow 5: Sparse Resumption & Hole-Filling on Interruption
 1. Connection drops mid-transfer at Chunk 2600, with a missing gap at Chunk 501.

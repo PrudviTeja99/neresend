@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 import '../../core/errors/exceptions.dart';
+import '../../core/utils/device_name_generator.dart';
 import '../../domain/contracts/secure_storage_port.dart';
 import '../../domain/models/device_identity.dart';
 
@@ -171,15 +172,15 @@ class IdentityService {
   String _getDefaultPlatformAlias() {
     try {
       final hostname = Platform.localHostname;
-      if (hostname.isNotEmpty && hostname != 'localhost') {
+      if (hostname.isNotEmpty &&
+          hostname != 'localhost' &&
+          hostname != 'localhost.localdomain' &&
+          hostname != 'android' &&
+          !hostname.startsWith('android-')) {
         return hostname;
       }
     } catch (_) {}
 
-    if (Platform.isAndroid) return 'Android Device';
-    if (Platform.isLinux) return 'Linux PC';
-    if (Platform.isWindows) return 'Windows PC';
-    if (Platform.isMacOS) return 'Mac';
-    return 'DropFlow Device';
+    return DeviceNameGenerator.generateRandomName();
   }
 }

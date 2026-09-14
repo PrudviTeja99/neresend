@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/power_management_service.dart';
 import '../../data/services/storage_service.dart';
 import '../../data/services/transfer_orchestrator.dart';
+import '../../domain/models/device_identity.dart';
 import 'identity_provider.dart';
 
 final storageServiceProvider = Provider<StorageService>((ref) {
@@ -25,6 +26,14 @@ final transferOrchestratorProvider =
     storageService: storageService,
     powerService: powerService,
   );
+
+  // Reactively propagate any alias/identity changes to discovery and transports
+  ref.listen<AsyncValue<DeviceIdentity>>(identityStateProvider,
+      (previous, next) {
+    next.whenData((updatedIdentity) {
+      orchestrator.updateLocalIdentity(updatedIdentity);
+    });
+  });
 
   await orchestrator.initialize();
   ref.onDispose(() {

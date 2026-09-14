@@ -12,12 +12,18 @@ import 'tls_certificate_manager.dart';
 /// Local TLS Client connecting to remote peer TLS servers on LAN
 class LocalTlsClient {
   final IdentityService identityService;
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
 
   LocalTlsClient({
     required this.identityService,
-    required this.localIdentity,
-  });
+    required DeviceIdentity localIdentity,
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+  }
 
   /// Connect to a peer server over TLS 1.3 and perform mutual Ed25519 authentication
   Future<NeReSendTransport> connectToPeer({
@@ -33,11 +39,13 @@ class LocalTlsClient {
       rawSocket = await SecureSocket.connect(
         host,
         port,
-        onBadCertificate: (cert) => true, // Accept ephemeral cert; identity verified via Ed25519 signature
+        onBadCertificate: (cert) =>
+            true, // Accept ephemeral cert; identity verified via Ed25519 signature
         timeout: timeout,
       );
 
-      final serverCertFingerprint = TlsCertificateManager.defaultCertFingerprint;
+      final serverCertFingerprint =
+          TlsCertificateManager.defaultCertFingerprint;
 
       transport = LocalTlsTransport(socket: rawSocket);
 
@@ -65,7 +73,8 @@ class LocalTlsClient {
       }
 
       if (e is NeReSendException) rethrow;
-      throw NetworkException('Failed to connect to peer at $host:$port: $e', cause: e);
+      throw NetworkException('Failed to connect to peer at $host:$port: $e',
+          cause: e);
     }
   }
 }

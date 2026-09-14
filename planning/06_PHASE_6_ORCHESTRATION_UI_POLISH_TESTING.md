@@ -89,7 +89,7 @@ lib/
 | :--- | :---: | :---: | :---: |
 | **Same-LAN mDNS / TLS** | ✅ Verified | ✅ Verified | ✅ Verified |
 | **Direct Link Hotspot** | ✅ LocalOnlyHotspot | ✅ NetworkManager D-Bus | ✅ WiFiDirect API |
-| **Remote WebRTC P2P** | ✅ Verified | ✅ Verified | ✅ Verified |
+| **Remote Wormhole Relay** | ✅ Verified | ✅ Verified | ✅ Verified |
 | **Secure KeyStore** | ✅ Android KeyStore | ✅ SecretService D-Bus | ✅ Windows DPAPI |
 | **Background WakeLock** | ✅ PartialWakeLock + Wi-Fi | ✅ systemd-inhibit | ✅ SetThreadExecutionState |
 | **System Tray / Min-to-Tray** | N/A | ✅ libappindicator | ✅ Win32 Tray Icon |

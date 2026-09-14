@@ -21,7 +21,7 @@ import 'sender_session.dart';
 
 /// Concrete implementation of TransferProtocolEngine coordinating send and receive sessions
 class NeReSendProtocolEngine implements TransferProtocolEngine {
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final bool isRemote;
 
   final StreamController<TransferProgress> _progressController =
@@ -39,9 +39,18 @@ class NeReSendProtocolEngine implements TransferProtocolEngine {
       })> _pendingRequests = {};
 
   NeReSendProtocolEngine({
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.isRemote = false,
-  });
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+  }
+
+  IncomingTransferRequest? getPendingRequest(String transferId) =>
+      _pendingRequests[transferId]?.request;
 
   @override
   Stream<TransferProgress> get onProgress => _progressController.stream;

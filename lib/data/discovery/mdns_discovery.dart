@@ -9,7 +9,7 @@ import '../../../domain/models/transfer_mode.dart';
 
 /// Multicast DNS (RFC 6762 / 6763) Service Advertiser and Scanner
 class MdnsDiscovery {
-  final DeviceIdentity localIdentity;
+  DeviceIdentity _localIdentity;
   final int tcpPort;
 
   RawDatagramSocket? _socket;
@@ -21,9 +21,19 @@ class MdnsDiscovery {
       StreamController<List<DiscoveredPeer>>.broadcast();
 
   MdnsDiscovery({
-    required this.localIdentity,
+    required DeviceIdentity localIdentity,
     this.tcpPort = AppConstants.tcpTlsPort,
-  });
+  }) : _localIdentity = localIdentity;
+
+  DeviceIdentity get localIdentity => _localIdentity;
+
+  /// Updates local identity and announces the updated service over mDNS
+  void updateIdentity(DeviceIdentity newIdentity) {
+    _localIdentity = newIdentity;
+    if (isRunning) {
+      announceService();
+    }
+  }
 
   Stream<List<DiscoveredPeer>> get onPeersChanged => _peersController.stream;
   List<DiscoveredPeer> get currentPeers =>

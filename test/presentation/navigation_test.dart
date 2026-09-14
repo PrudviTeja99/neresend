@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:neresend/data/services/transfer_orchestrator.dart';
-import 'package:neresend/data/transports/webrtc/remote_signaling_client.dart';
+import 'package:neresend/domain/models/remote_session_info.dart';
 import 'package:neresend/domain/models/discovered_peer.dart';
 import 'package:neresend/domain/models/transfer_progress.dart';
 import 'package:neresend/presentation/screens/main_scaffold_screen.dart';
