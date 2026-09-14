@@ -145,12 +145,10 @@ class RemoteSignalingClient {
       request.write(jsonEncode(data));
 
       final response = await request.close().timeout(
-        const Duration(seconds: 8),
-      );
+            const Duration(seconds: 8),
+          );
 
-      final responseBody = await response
-          .transform(utf8.decoder)
-          .join();
+      final responseBody = await response.transform(utf8.decoder).join();
 
       debugPrint(
         '[SIGNALING] POST response: ${response.statusCode} ${response.reasonPhrase}',
@@ -183,12 +181,10 @@ class RemoteSignalingClient {
       final request = await _httpClient.getUrl(uri);
 
       final response = await request.close().timeout(
-        const Duration(seconds: 8),
-      );
+            const Duration(seconds: 8),
+          );
 
-      final body = await response
-          .transform(utf8.decoder)
-          .join();
+      final body = await response.transform(utf8.decoder).join();
 
       debugPrint(
         '[SIGNALING] GET response: ${response.statusCode} ${response.reasonPhrase}',
@@ -217,8 +213,7 @@ class RemoteSignalingClient {
             continue;
           }
 
-          if (event['event'] == 'message' &&
-              event['message'] is String) {
+          if (event['event'] == 'message' && event['message'] is String) {
             final payload = jsonDecode(event['message']);
 
             if (payload is Map<String, dynamic>) {
@@ -299,7 +294,8 @@ class RemoteSignalingClient {
         'sdpOffer': sdpOffer,
       });
     } catch (e) {
-      debugPrint('[SIGNALING] Failed to publish initial session offer to relay: $e');
+      debugPrint(
+          '[SIGNALING] Failed to publish initial session offer to relay: $e');
       // If network relay is unavailable, local session record is still stored for local/same-process rendezvous
     }
 
