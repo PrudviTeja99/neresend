@@ -94,7 +94,7 @@ FileSharing/
 │   │   ├── discovery/               # PEER DISCOVERY DRIVERS
 │   │   │   ├── lan_discovery_driver.dart     # Standard RFC 6762 mDNS + UDP Multicast fallback
 │   │   │   ├── ble_discovery_driver.dart     # BLE GATT advertisement & central scanner
-│   │   │   └── remote_discovery_driver.dart  # WebSocket 10-minute PIN discovery client
+│   │   │   └── remote_discovery_driver.dart  # HTTP Pub/Sub 5-minute PIN discovery driver
 │   │   ├── transports/              # AUTHENTICATED TRANSPORT IMPLEMENTATIONS
 │   │   │   ├── local_tls/
 │   │   │   │   ├── local_tls_transport.dart  # DropFlowTransport over persistent TLS 1.3 SecureSocket
@@ -107,9 +107,10 @@ FileSharing/
 │   │   │   │   └── unsupported_direct_adapter.dart # Reports DIRECT_LINK_UNAVAILABLE
 │   │   │   └── webrtc/                       # Driver 3 WebRTC Transport
 │   │   │       ├── webrtc_transport.dart     # DropFlowTransport over RFC 8831 Dual DataChannels
-│   │   │       └── signaling_client.dart     # WebSocket SDP & ICE exchange client
+│   │   │       ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle & ICE manager
+│   │   │       └── remote_signaling_client.dart # HTTP Pub/Sub SDP & ICE exchange client
 │   │   ├── protocol/                # NETWORK-AGNOSTIC TRANSFER ENGINE & FRAMING
-│   │   │   ├── dropflow_protocol_engine.dart # Agnostic transfer state machine (Sender/Receiver)
+│   │   │   ├── neresend_protocol_engine.dart # Agnostic transfer state machine (Sender/Receiver)
 │   │   │   ├── frame_codec.dart              # FrameReader & FrameWriter (5-byte binary header)
 │   │   │   ├── dynamic_chunk_sizer.dart      # Invariant calculator (Manifest <= 512 KB budget)
 │   │   │   ├── chunk_hasher.dart             # Pre-computes chunk SHA-256 hash tables

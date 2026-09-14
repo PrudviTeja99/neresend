@@ -306,16 +306,16 @@ DirectLinkAdapter (Abstract Port / Interface)
 
 ## 7. Remote Internet P2P Architecture: Dual-Channel SCTP Isolation (RFC 8831) & Cloud Signaling Bridge
 
-For devices located in different cities or networks across the internet, NeReSend uses a high-performance **WebRTC Dual DataChannel Architecture** governed by **RFC 8831** coupled with an ephemeral **Cloud Signaling Rendezvous Bridge**:
+For devices located in different cities or networks across the internet, NeReSend uses a high-performance **WebRTC Dual DataChannel Architecture** governed by **RFC 8831** coupled with an ephemeral **HTTP Pub/Sub Signaling Rendezvous Bridge**:
 
 ```
                   INTERNET (Signaling Phase Only)
                                  │
                       ┌──────────▼──────────┐
-                      │  Signaling Service  │
-                      │  (WSS / Ephemeral)  │
-                      │  PIN → SDP/ICE      │
-                      │  Offer ↔ Answer     │
+                      │  Signaling Relay    │
+                      │  (HTTP / Ephemeral) │
+                      │  PIN Topic: Offer   │
+                      │  Ans Topic: Answer  │
                       └───────┬───────┬─────┘
                               │       │
                           signaling signaling
@@ -346,62 +346,78 @@ For devices located in different cities or networks across the internet, NeReSen
 ```
 
 ### A. The Critical Architectural Distinction: Signaling Relay $\neq$ Cloud File Storage
-* **Connection Establishment Only:** The signaling bridge *only* handles temporary routing of the initial $\approx 1\text{ KB}$ SDP handshake and ICE candidate messages (`create`, `join`, `offer`, `answer`, `candidate`, `close`).
+* **Connection Establishment Only:** The signaling bridge *only* handles temporary routing of the initial $\approx 1\text{ KB}$ SDP handshake and candidate data across ephemeral topics (`neresend-pin-<pin>` for Offer, `neresend-ans-<sessionId>` for Answer).
 * **Zero Payload in Cloud:** No file data, chunk payloads, or persistent personal metadata ever passes through or touches the signaling server.
 * **Product Promise:** **"Files stream directly device-to-device with end-to-end encryption."**
 
-### B. Human-Friendly Rendezvous & Token Security Model
+### B. The Deterministic 4-Step Remote Handshake Sequence
+```text
+1. Receiver (Host)           2. Relay (ntfy.sh)             3. Sender (Client)
+   │                               │                               │
+   ├─ createOffer() + ICE gather   │                               │
+   ├─ POST /neresend-pin-<PIN> ───►│ (Stored on PIN topic)         │
+   │  [Offer + Host DeviceIdentity]│                               │
+   │                               │ ◄── GET /neresend-pin-<PIN> ──┤
+   │                               │     (Fetches SDP Offer)       │
+   │                               │                               ├─ acceptHostOffer() + ICE
+   │                               │                               ├─ generate WebRTC Answer
+   │                               │ ◄── POST /neresend-ans-<ID> ──┤
+   │                               │     [Answer + ClientIdentity] │
+   │ ◄── GET /neresend-ans-<ID> ───┤                               │
+   │     (Polls & receives Answer) │                               │
+   ├─ finalizeHostTransport()      │                               ├─ finalizeClientTransport()
+   │  (Symmetric SAS Emoji Hash)   │                               │  (Symmetric SAS Emoji Hash)
+   ▼                               ▼                               ▼
+   └────────────────── RFC 8831 Dual DataChannels Open ───────────┘
+```
+
+1. **Host Offer Generation & Synchronous Publish:**
+   - Host generates a fresh `RTCPeerConnection`, data-only SDP offer, and control/data DataChannels.
+   - Awaits ICE gathering completion.
+   - Synchronously posts the SDP offer and `hostIdentity` to `neresend-pin-<pin>`.
+2. **Client Discovery & WebRTC Answer Generation:**
+   - Client enters 6-digit PIN or scans QR code.
+   - Fetches host's SDP offer and `hostIdentity` from `neresend-pin-<pin>`.
+   - Creates `RTCPeerConnection`, sets remote description, generates SDP answer, and sets local description.
+3. **Client Answer Submission & Identity Exchange:**
+   - Client submits real SDP answer and `clientIdentity` to `neresend-ans-<sessionId>`.
+4. **Symmetrical SAS Verification & Protocol Attachment:**
+   - Host receives answer and extracts `clientIdentity.fingerprint`.
+   - Both devices derive identical 3-emoji SAS strings from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
+   - Both devices open DataChannels and attach `NeReSendProtocolEngine`.
+
+### C. Human-Friendly Rendezvous & Token Security Model
 * **PIN as Rendezvous Pointer, Not the Secret:** A 6-digit PIN (`550 573`) serves strictly as a human-friendly lookup pointer to a cryptographically strong 128-bit `sessionId` and short-lived `authToken`.
 * **Single-Use Ephemeral Lifecycle:**
   * Receiver taps **"Receive Remotely"** $\rightarrow$ generates a session with a 5-minute countdown (`Expires in 4:52`).
-  * Once pairing succeeds and the DataChannels open, the session is consumed and purged from the signaling broker immediately (`DELETE /session`).
+  * Once pairing succeeds and the DataChannels open, the session is consumed and purged immediately.
 * **Structured QR Code Invitation (`neresend://pair?...`):**
   * The receiver presents a dynamic QR code encoding:
     ```text
     neresend://pair?session=<sessionId>&token=<token>&pin=550573
     ```
-  * Mobile senders scan the QR code for instant 1-tap connection with 0 typing, while the 6-digit PIN serves as a convenient manual entry fallback.
+  * Mobile senders scan the QR code for instant 1-tap connection with 0 typing, while the 6-digit PIN serves as a manual entry fallback.
 
-* **Cross-Platform QR Scanner Architecture (`QrScannerDialog`):**
-  * **Live Camera Viewfinder (Mobile / macOS):** Utilizes `mobile_scanner` with real-time barcode recognition, torch/flashlight toggle, and front/back camera switching.
-  * **Static Image QR Analysis (`analyzeImage`):** Senders can pick an image file or screenshot via `FilePicker` to extract pairing metadata directly from images without requiring camera hardware.
-  * **Clipboard Auto-Paste Fallback (Desktop Linux / Windows):** Provides 1-tap clipboard paste on environments where camera drivers or permissions are unavailable.
-  * **Universal Parser (`RemoteSessionInfo.parseInviteUri`):** Accepts structured URIs (`neresend://pair?...`), raw 6-digit PIN strings (`550 573` or `550573`), or session tokens interchangeably.
-  * **Permissive Manifest Integration:** Configured with `<uses-permission android:name="android.permission.CAMERA" />` and `android:required="false"` camera features, allowing full installation on camera-less Android devices (tablets/emulators/STBs).
+* **Explicit Error Taxonomy & Transparent Error Codes:**
+  * `RELAY_NETWORK_ERROR`: Physical network offline or signaling server unreachable.
+  * `RELAY_PUBLISH_FAILED`: Relay rejected HTTP POST request (non-200 response).
+  * `RELAY_FETCH_FAILED`: Relay rejected HTTP GET poll request (non-200 response).
+  * `PIN_FORMAT_INVALID`: PIN contains invalid characters or does not equal 6 digits.
+  * `PIN_EXPIRED`: Relay was reached successfully but no active offer exists on the topic.
+  * `PIN_LOCKED`: 3 failed attempts reached; session locked for brute-force protection.
+  * `PIN_TIMEOUT`: Peer failed to answer within the 5-minute session window.
 
-### C. NAT Traversal & TURN Fallback Guarantee
-1. **Application-Level Stream Isolation (RFC 8831):** Separates `'control'` (SCTP Stream 0) and `'data'` (SCTP Stream 1) over a single DTLS association.
-2. **Backpressure Flow Control:** The `'data'` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), keeping RAM usage under **15 MB**.
-3. **64 KB Wire Sub-Packetization:** `WebRtcTransport` sub-packetizes 1–4 MB dynamic chunks into $\le 64\text{ KB}$ wire frames (`[4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Bytes]`), reassembled in memory by `WebRtcChunkReassembler`.
-4. **ICE / STUN / TURN Resolution:**
-   * Prioritizes direct host and STUN server-reflexive candidate pairs ($>85\%$ of residential connections).
-   * Automatically falls back to TURN relaying when restrictive symmetric NATs or corporate/university firewalls prevent direct UDP hole-punching.
-5. **Transparent UX:** The user interface abstracts all network negotiation into smooth, friendly states:
-   ```text
-   Idle ──► Connecting… ──► ✓ Connected (Ready to send files)
-   ```
-
-### D. Data-Only SDP Negotiation & Platform Safety
-* **Elimination of Audio/Video Subsystems:** NeReSend is strictly a high-speed data transfer engine. `WebRtcConnectionManager` explicitly disables media transceiver negotiation on all SDP offers and answers:
-  ```dart
-  static const Map<String, dynamic> dataOnlySdpConstraints = {
-    'mandatory': {
-      'OfferToReceiveAudio': false,
-      'OfferToReceiveVideo': false,
-    },
-    'optional': [],
-  };
-  ```
-* **Desktop & Linux Headless Safety:** Disabling media negotiation prevents native `libwebrtc` from initializing the Audio Device Module (ADM), PulseAudio, or ALSA drivers, eliminating audio-related initialization crashes on desktop and Linux environments.
-
-### E. Idempotent Resource Teardown & Sequential Regeneration Lifecycle
-* **Centralized Teardown:** A single cleanup pathway (`disposeConnection()`) idempotently unbinds event listeners, closes DataChannels, terminates the `RTCPeerConnection`, and purges ephemeral signaling entries across all lifecycle events:
-  - User generates a new PIN ("New PIN")
-  - Remote tab is disposed or app enters background
-  - Session expires after 5 minutes
-  - Connection succeeds or encounters an unrecoverable network error
-* **Sequential "New PIN" Allocation:** When regenerating a session, the UI immediately locks the action button (`Creating...`), sequentially destroys the prior connection and signaling entry, allocates a fresh `RTCPeerConnection`, registers the new session on the signaling bridge, and starts a fresh 5:00 countdown.
-* **Reactive Provider State Machine:** `RemoteTabScreen` natively binds to `transferOrchestratorProvider` via Riverpod's `.when(loading:, error:, data:)`, eliminating silent early returns and guaranteeing the UI always matches background engine readiness.
+### D. NAT Traversal & STUN/TURN Architecture
+1. **Bounded ICE Server Configuration:** `iceServers` configuration is bounded to $\le 4$ high-availability STUN/TURN endpoints to guarantee strict compliance with native `libwebrtc` constraints (`kMaxIceServerSize = 8`):
+   - `stun:stun.l.google.com:19302`
+   - `stun:global.stun.twilio.com:3478`
+   - `turn:openrelay.metered.ca:80`
+   - `turn:openrelay.metered.ca:443?transport=tcp`
+2. **Application-Level Stream Isolation (RFC 8831):** Separates `'control'` (SCTP Stream 0) and `'data'` (SCTP Stream 1) over a single DTLS association.
+3. **Backpressure Flow Control:** The `'data'` channel monitors `bufferedAmountLowThreshold` (set to 1 MB), keeping RAM usage under **15 MB**.
+4. **64 KB Wire Sub-Packetization:** `WebRtcTransport` sub-packetizes 1–4 MB dynamic chunks into $\le 64\text{ KB}$ wire frames (`[4B ChunkIdx] [4B SubOffset] [4B TotalChunkLen] [Raw Bytes]`), reassembled in memory by `WebRtcChunkReassembler`.
+5. **Data-Only SDP Negotiation:** `WebRtcConnectionManager` explicitly sets `OfferToReceiveAudio: false` and `OfferToReceiveVideo: false`, preventing desktop audio device crashes.
+6. **Centralized Lifecycle Teardown (`disposeConnection()`):** Unbinds native event listeners, closes DataChannels, terminates `RTCPeerConnection`, and cleans up state idempotently.
 
 ---
 

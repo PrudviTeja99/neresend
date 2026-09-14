@@ -1,28 +1,34 @@
 # Phase 5: Driver 3 — Remote Internet WebRTC Engine (RFC 8831 Dual DataChannels)
 
-This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataChannels, lightweight WebSocket PIN signaling, RFC 8831 independent SCTP stream separation, asynchronous backpressure flow control, and Short Authentication String (SAS) emoji verification.
+This phase implements internet-wide peer-to-peer sharing using WebRTC RTCDataChannels, lightweight HTTP pub/sub PIN signaling relay, RFC 8831 independent SCTP stream separation, asynchronous backpressure flow control, and Short Authentication String (SAS) emoji verification.
 
 ---
 
 ## 🎯 Phase Goals & Objectives
 
-1. Implement **Cloud Signaling Bridge** via `RemoteSignalingClient` over secure WebSockets (`wss://`) for ephemeral session rendezvous (exchanging $\approx 1\text{ KB}$ SDP offers/answers & ICE candidates).
-2. Implement **Human-Friendly PIN + Token Security Model**:
+1. Implement **Cloud Signaling Bridge** via `RemoteSignalingClient` over HTTP pub/sub topics (`POST /<topic>` and `GET /<topic>/json?poll=1`) for ephemeral session rendezvous (exchanging $\approx 1\text{ KB}$ SDP offers/answers & client identities).
+2. Implement **Deterministic 4-Step Remote Handshake Sequence**:
+   - Host generates SDP offer, awaits ICE gathering, and posts to `neresend-pin-<pin>`.
+   - Client joins with PIN/QR, fetches host offer, creates WebRTC answer.
+   - Client submits real SDP answer and `clientIdentity` to `neresend-ans-<sessionId>`.
+   - Host receives answer and finalizes WebRTC transport using symmetric SAS emoji hash.
+3. Implement **Human-Friendly PIN + Token Security Model**:
    - 6-digit human PIN (`550 573`) acts as a lookup pointer to a 128-bit `sessionId` and short-lived `authToken`.
    - 5-minute single-use session countdown timer (`Expires in 4:52`).
-   - Single-use consumption: session is automatically deleted from the signaling broker upon DataChannel establishment.
-3. Implement **Structured QR Code Pairing**:
+   - Single-use consumption: session is automatically deleted upon DataChannel establishment.
+4. Implement **Structured QR Code Pairing**:
    - Receiver generates QR code containing `neresend://pair?session=<id>&token=<token>&pin=<code>`.
    - Sender scans QR for instant 1-tap connection with zero manual typing.
-4. Configure `flutter_webrtc` `RTCPeerConnection` with public STUN servers (`stun.l.google.com:19302`) and **TURN relay fallback** to guarantee connectivity across strict symmetric NATs and enterprise/carrier firewalls.
-5. Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on both offer and answer generation to prevent native audio subsystem / ADM initialization crashes on desktop/Linux.
-6. Implement **Centralized & Idempotent Connection Lifecycle Teardown** (`disposeConnection()`) ensuring clean sequential regeneration ("New PIN"), session expiration, and error handling.
-7. Implement **RFC 8831 Dual DataChannels**:
+5. Configure `flutter_webrtc` `RTCPeerConnection` with bounded STUN/TURN servers ($\le 4$ servers to respect native `kMaxIceServerSize = 8`) to guarantee connectivity across strict symmetric NATs and enterprise/carrier firewalls.
+6. Enforce **Data-Only SDP Negotiation** (`OfferToReceiveAudio: false`, `OfferToReceiveVideo: false`) on both offer and answer generation to prevent native audio subsystem / ADM initialization crashes on desktop/Linux.
+7. Implement **Centralized & Idempotent Connection Lifecycle Teardown** (`disposeConnection()`) ensuring clean sequential regeneration ("New PIN"), session expiration, and error handling.
+8. Implement **RFC 8831 Dual DataChannels**:
    - `'control'` channel: Priority stream for manifests, SAS verification, and instant $< 20\text{ ms}$ pause/cancel commands.
    - `'data'` channel: Bulk binary data stream with dynamic chunks (1–4 MB).
-8. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
-9. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived from DTLS fingerprints.
-10. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
+9. Implement the **Non-Blocking Backpressure Loop** (`bufferedAmountLowThreshold = 1 MB`) keeping client RAM under $15\text{ MB}$.
+10. Implement **SAS 3-Emoji Verification** (`🌟 🚀 🎸`) derived symmetrically from `SHA-256(localFingerprint || remoteFingerprint || PIN)`.
+11. Implement **Transparent Error Handling** (`RELAY_NETWORK_ERROR`, `PIN_FORMAT_INVALID`, `PIN_EXPIRED`, `PIN_LOCKED`, `PIN_TIMEOUT`).
+12. Wrap in `NeReSendTransport` (`WebRtcTransport`) to power `NeReSendProtocolEngine`.
 
 ---
 
@@ -37,10 +43,10 @@ lib/
 │       └── webrtc/
 │           ├── webrtc_transport.dart     # Implements NeReSendTransport over Dual RTCDataChannels
 │           ├── webrtc_connection_manager.dart # RTCPeerConnection lifecycle, STUN/TURN & ICE gatherer
-│           ├── remote_signaling_client.dart # WebSocket client for cloud signaling broker rendezvous
+│           ├── remote_signaling_client.dart # HTTP pub/sub client for cloud signaling relay rendezvous
 │           ├── webrtc_backpressure_streamer.dart # BufferedAmount watcher throttle loop
 │           ├── webrtc_chunk_reassembler.dart # Sub-packet reassembly & integrity verifier
-│           └── sas_generator.dart        # Derives 3-emoji SAS from DTLS public keys
+│           └── sas_generator.dart        # Derives 3-emoji SAS from DTLS fingerprints
 └── presentation/
     ├── screens/
     │   └── remote_tab_screen.dart        # Reactive Remote Tab with 5-minute countdown & QR scan button
@@ -56,10 +62,10 @@ lib/
                   INTERNET (Signaling Phase Only)
                                  │
                       ┌──────────▼──────────┐
-                      │  Signaling Service  │
-                      │  (WSS / Ephemeral)  │
-                      │  PIN → SDP/ICE      │
-                      │  Offer ↔ Answer     │
+                      │  Signaling Relay    │
+                      │  (HTTP / Ephemeral) │
+                      │  PIN Topic: Offer   │
+                      │  Ans Topic: Answer  │
                       └───────┬───────┬─────┘
                               │       │
                           signaling signaling
