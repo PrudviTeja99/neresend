@@ -64,26 +64,35 @@ class RemoteDiscoveryDriver implements PeerDiscoveryPort {
     return sessionInfo;
   }
 
-  /// Host awaits the client's SDP answer
-  Future<String> awaitClientAnswer({required String sessionId}) async {
-    final answer = await signalingClient.awaitAnswer(sessionId: sessionId);
-    return answer;
+  /// Host awaits the client's SDP answer and registers the connecting peer
+  Future<({String sdpAnswer, DeviceIdentity? clientIdentity})>
+      awaitClientAnswer({required String sessionId}) async {
+    final result = await signalingClient.awaitAnswer(sessionId: sessionId);
+    if (result.clientIdentity != null) {
+      final clientPeer = DiscoveredPeer(
+        id: result.clientIdentity!.deviceId,
+        alias: result.clientIdentity!.alias,
+        deviceType: DeviceType.android,
+        ipAddress: '0.0.0.0', // WebRTC DTLS direct ICE / TURN relay
+        port: 0,
+        supportedMode: TransferMode.remote,
+        identityPublicKey: result.clientIdentity!.publicKeyBase64,
+        fingerprint: result.clientIdentity!.fingerprint,
+        lastSeen: DateTime.now(),
+      );
+      registerPeer(clientPeer);
+    }
+    return result;
   }
 
   /// Client joins an active session using 6-digit PIN or structured QR invite URI
   Future<RemotePairingResult> pairWithPin({
     required String pinOrUri,
-    required String sdpAnswer,
   }) async {
     _isDiscovering = true;
     final sessionData = await signalingClient.joinSession(
       pinOrUri: pinOrUri,
       clientIdentity: localIdentity,
-    );
-
-    await signalingClient.submitAnswer(
-      sessionId: sessionData.sessionInfo.sessionId,
-      sdpAnswer: sdpAnswer,
     );
 
     final hostIdentity = sessionData.hostIdentity;

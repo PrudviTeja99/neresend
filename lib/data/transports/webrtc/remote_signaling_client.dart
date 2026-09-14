@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../domain/models/device_identity.dart';
@@ -63,7 +65,9 @@ class _SignalingRecord {
 
   String? sdpAnswer;
   DeviceIdentity? clientIdentity;
-  final Completer<String> answerCompleter = Completer<String>();
+  final Completer<({String sdpAnswer, DeviceIdentity? clientIdentity})>
+      answerCompleter =
+      Completer<({String sdpAnswer, DeviceIdentity? clientIdentity})>();
   final StreamController<String> iceCandidates =
       StreamController<String>.broadcast();
 
@@ -202,6 +206,9 @@ class RemoteSignalingClient {
     _localSessions[sessionId] = record;
     _pinToSessionId[normalizedPin] = sessionId;
 
+    debugPrint(
+        '[SIGNALING] Created session $sessionId with PIN $pin (relay: neresend-pin-$normalizedPin)');
+
     // Publish offer to public relay asynchronously so sender on another device can discover it
     unawaited(_publishToRelay('neresend-pin-$normalizedPin', {
       'type': 'OFFER',
@@ -229,6 +236,8 @@ class RemoteSignalingClient {
   }) async {
     final parsed = RemoteSessionInfo.parseInviteUri(pinOrUri);
     final normalizedPin = normalizePin(parsed.pin);
+    debugPrint(
+        '[SIGNALING] Joining session with PIN/URI: $pinOrUri (normalized: $normalizedPin, sessionId: ${parsed.sessionId})');
 
     String? sessionId = parsed.sessionId;
     sessionId ??= _pinToSessionId[normalizedPin];
@@ -246,6 +255,7 @@ class RemoteSignalingClient {
           );
         }
         record.clientIdentity = clientIdentity;
+        debugPrint('[SIGNALING] Matched local session $sessionId');
         return (
           sdpOffer: record.sdpOffer,
           hostIdentity: record.hostIdentity,
@@ -256,6 +266,8 @@ class RemoteSignalingClient {
 
     // 2. Query network signaling relay for remote host session
     if (normalizedPin.isNotEmpty) {
+      debugPrint(
+          '[SIGNALING] Polling relay topic neresend-pin-$normalizedPin for remote offer...');
       final remoteOffer =
           await _fetchLatestFromRelay('neresend-pin-$normalizedPin');
       if (remoteOffer != null &&
@@ -293,12 +305,20 @@ class RemoteSignalingClient {
           _localSessions[rSessionId] = record;
           _pinToSessionId[normalizedPin] = rSessionId;
 
+          debugPrint(
+              '[SIGNALING] Successfully retrieved remote offer for session $rSessionId (host: ${rHostIdentity.alias})');
           return (
             sdpOffer: rSdpOffer,
             hostIdentity: rHostIdentity,
             sessionInfo: rInfo,
           );
+        } else {
+          debugPrint(
+              '[SIGNALING] Remote offer was expired (created: $rCreatedAt)');
         }
+      } else {
+        debugPrint(
+            '[SIGNALING] No active offer found on relay topic neresend-pin-$normalizedPin');
       }
     }
 
@@ -312,12 +332,18 @@ class RemoteSignalingClient {
   Future<void> submitAnswer({
     required String sessionId,
     required String sdpAnswer,
+    DeviceIdentity? clientIdentity,
   }) async {
+    debugPrint('[SIGNALING] Submitting answer for session $sessionId');
     final record = _localSessions[sessionId];
     if (record != null) {
       record.sdpAnswer = sdpAnswer;
+      if (clientIdentity != null) record.clientIdentity = clientIdentity;
       if (!record.answerCompleter.isCompleted) {
-        record.answerCompleter.complete(sdpAnswer);
+        record.answerCompleter.complete((
+          sdpAnswer: sdpAnswer,
+          clientIdentity: clientIdentity ?? record.clientIdentity
+        ));
       }
     }
 
@@ -326,14 +352,18 @@ class RemoteSignalingClient {
       'type': 'ANSWER',
       'sessionId': sessionId,
       'sdpAnswer': sdpAnswer,
+      if (clientIdentity != null) 'clientIdentity': clientIdentity.toJson(),
     });
+    debugPrint(
+        '[SIGNALING] Published answer to relay topic neresend-ans-$sessionId');
   }
 
   /// Host awaits the client's SDP answer
-  Future<String> awaitAnswer({
+  Future<({String sdpAnswer, DeviceIdentity? clientIdentity})> awaitAnswer({
     required String sessionId,
     Duration timeout = const Duration(minutes: 5),
   }) async {
+    debugPrint('[SIGNALING] Awaiting SDP answer for session $sessionId');
     final record = _localSessions[sessionId];
     if (record == null || record.info.isExpired) {
       throw const NetworkException('Session not found or expired',
@@ -344,12 +374,13 @@ class RemoteSignalingClient {
       return await record.answerCompleter.future;
     }
 
-    final completer = Completer<String>();
+    final completer =
+        Completer<({String sdpAnswer, DeviceIdentity? clientIdentity})>();
     Timer? pollTimer;
     final deadline = DateTime.now().add(timeout);
 
     pollTimer =
-        Timer.periodic(const Duration(milliseconds: 1200), (timer) async {
+        Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
       if (record.answerCompleter.isCompleted) {
         timer.cancel();
         if (!completer.isCompleted) {
@@ -371,13 +402,28 @@ class RemoteSignalingClient {
       final ansData = await _fetchLatestFromRelay('neresend-ans-$sessionId');
       if (ansData != null && ansData['sdpAnswer'] != null) {
         final answer = ansData['sdpAnswer'] as String;
+        DeviceIdentity? clientIdent;
+        if (ansData['clientIdentity'] != null &&
+            ansData['clientIdentity'] is Map) {
+          try {
+            clientIdent = DeviceIdentity.fromWireJson(
+                ansData['clientIdentity'] as Map<String, dynamic>);
+          } catch (_) {}
+        }
         timer.cancel();
         record.sdpAnswer = answer;
+        if (clientIdent != null) record.clientIdentity = clientIdent;
+        final result = (
+          sdpAnswer: answer,
+          clientIdentity: clientIdent ?? record.clientIdentity,
+        );
+        debugPrint(
+            '[SIGNALING] Received SDP answer for session $sessionId (client: ${clientIdent?.alias})');
         if (!record.answerCompleter.isCompleted) {
-          record.answerCompleter.complete(answer);
+          record.answerCompleter.complete(result);
         }
         if (!completer.isCompleted) {
-          completer.complete(answer);
+          completer.complete(result);
         }
       }
     });

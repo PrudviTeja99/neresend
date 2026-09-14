@@ -31,7 +31,9 @@ void main() {
   });
 
   group('RemoteSignalingClient Tests', () {
-    test('Host creates session and receives 6-digit PIN and structured invite URI', () async {
+    test(
+        'Host creates session and receives 6-digit PIN and structured invite URI',
+        () async {
       final info = await signalingClient.createSession(
         hostIdentity: hostIdentity,
         sdpOffer: 'v=0\r\no=host ...',
@@ -48,8 +50,11 @@ void main() {
       expect(normalized.length, 6);
     });
 
-    test('RemoteSessionInfo parseInviteUri parses both URI and raw PIN correctly', () {
-      const uri = 'neresend://pair?session=abcdef1234567890abcdef1234567890&token=1234567890abcdef&pin=550573';
+    test(
+        'RemoteSessionInfo parseInviteUri parses both URI and raw PIN correctly',
+        () {
+      const uri =
+          'neresend://pair?session=abcdef1234567890abcdef1234567890&token=1234567890abcdef&pin=550573';
       final parsedUri = RemoteSessionInfo.parseInviteUri(uri);
       expect(parsedUri.sessionId, 'abcdef1234567890abcdef1234567890');
       expect(parsedUri.authToken, '1234567890abcdef');
@@ -61,7 +66,8 @@ void main() {
       expect(parsedPin.pin, '550 573');
     });
 
-    test('Client joins session with 6-digit PIN and completes SDP exchange', () async {
+    test('Client joins session with 6-digit PIN and completes SDP exchange',
+        () async {
       final info = await signalingClient.createSession(
         hostIdentity: hostIdentity,
         sdpOffer: 'v=0\r\no=host offer sdp',
@@ -80,6 +86,7 @@ void main() {
       await signalingClient.submitAnswer(
         sessionId: info.sessionId,
         sdpAnswer: 'v=0\r\no=client answer sdp',
+        clientIdentity: clientIdentity,
       );
 
       // Host receives answer
@@ -87,7 +94,9 @@ void main() {
         sessionId: info.sessionId,
         timeout: const Duration(seconds: 2),
       );
-      expect(receivedAnswer, 'v=0\r\no=client answer sdp');
+      expect(receivedAnswer.sdpAnswer, 'v=0\r\no=client answer sdp');
+      expect(receivedAnswer.clientIdentity?.fingerprint,
+          clientIdentity.fingerprint);
     });
 
     test('Client joins session with QR invite URI', () async {
@@ -116,7 +125,8 @@ void main() {
       );
     });
 
-    test('3-Strike rate limiting destroys session on 3rd failed attempt', () async {
+    test('3-Strike rate limiting destroys session on 3rd failed attempt',
+        () async {
       final info = await signalingClient.createSession(
         hostIdentity: hostIdentity,
         sdpOffer: 'v=0\r\no=host offer',

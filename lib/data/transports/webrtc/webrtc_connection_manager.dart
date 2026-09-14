@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../../core/errors/exceptions.dart';
@@ -50,6 +51,16 @@ class WebRtcConnectionManager {
       })> createHostOffer() async {
     final pc = await createPeerConnection(configuration);
 
+    pc.onIceConnectionState = (state) {
+      debugPrint('[WEBRTC HOST] ICE Connection State: $state');
+    };
+    pc.onConnectionState = (state) {
+      debugPrint('[WEBRTC HOST] PeerConnection State: $state');
+    };
+    pc.onSignalingState = (state) {
+      debugPrint('[WEBRTC HOST] Signaling State: $state');
+    };
+
     final controlInit = RTCDataChannelInit()..ordered = true;
     final controlChannel = await pc.createDataChannel('control', controlInit);
 
@@ -59,6 +70,13 @@ class WebRtcConnectionManager {
       dataChannel.bufferedAmountLowThreshold =
           WebRtcBackpressureStreamer.maxBufferedBytes;
     } catch (_) {}
+
+    controlChannel.onDataChannelState = (state) {
+      debugPrint('[WEBRTC HOST] Control DataChannel State: $state');
+    };
+    dataChannel.onDataChannelState = (state) {
+      debugPrint('[WEBRTC HOST] Data DataChannel State: $state');
+    };
 
     final offer = await pc.createOffer(dataOnlySdpConstraints);
     await pc.setLocalDescription(offer);
@@ -87,9 +105,12 @@ class WebRtcConnectionManager {
     required String remoteFingerprint,
     required String sessionPin,
   }) async {
+    debugPrint('[WEBRTC HOST] Setting remote description from SDP answer...');
     final answerDesc = RTCSessionDescription(sdpAnswer, 'answer');
     await peerConnection.setRemoteDescription(answerDesc);
 
+    debugPrint(
+        '[WEBRTC HOST] Waiting for control and data channels to open...');
     await _waitForDataChannelsOpen(controlChannel, dataChannel);
 
     final sasEmojis = SasGenerator.formatEmojis(
@@ -121,17 +142,35 @@ class WebRtcConnectionManager {
   }) async {
     final pc = await createPeerConnection(configuration);
 
+    pc.onIceConnectionState = (state) {
+      debugPrint('[WEBRTC CLIENT] ICE Connection State: $state');
+    };
+    pc.onConnectionState = (state) {
+      debugPrint('[WEBRTC CLIENT] PeerConnection State: $state');
+    };
+    pc.onSignalingState = (state) {
+      debugPrint('[WEBRTC CLIENT] Signaling State: $state');
+    };
+
     final controlCompleter = Completer<RTCDataChannel>();
     final dataCompleter = Completer<RTCDataChannel>();
 
     pc.onDataChannel = (channel) {
+      debugPrint(
+          '[WEBRTC CLIENT] onDataChannel event received: ${channel.label}');
       if (channel.label == 'control' && !controlCompleter.isCompleted) {
+        channel.onDataChannelState = (state) {
+          debugPrint('[WEBRTC CLIENT] Control DataChannel State: $state');
+        };
         controlCompleter.complete(channel);
       } else if (channel.label == 'data' && !dataCompleter.isCompleted) {
         try {
           channel.bufferedAmountLowThreshold =
               WebRtcBackpressureStreamer.maxBufferedBytes;
         } catch (_) {}
+        channel.onDataChannelState = (state) {
+          debugPrint('[WEBRTC CLIENT] Data DataChannel State: $state');
+        };
         dataCompleter.complete(channel);
       }
     };
@@ -152,6 +191,7 @@ class WebRtcConnectionManager {
       required String remoteFingerprint,
       required String sessionPin,
     }) async {
+      debugPrint('[WEBRTC CLIENT] Waiting for DataChannels from host...');
       final controlChannel = await controlCompleter.future.timeout(
         const Duration(seconds: 15),
         onTimeout: () =>
@@ -163,6 +203,7 @@ class WebRtcConnectionManager {
             throw const NetworkException('Timeout waiting for data channel'),
       );
 
+      debugPrint('[WEBRTC CLIENT] Awaiting open state for DataChannels...');
       await _waitForDataChannelsOpen(controlChannel, dataChannel);
 
       final sasEmojis = SasGenerator.formatEmojis(
@@ -194,15 +235,18 @@ class WebRtcConnectionManager {
 
     final completer = Completer<void>();
     pc.onIceGatheringState = (state) {
+      debugPrint('[WEBRTC] ICE Gathering State: $state');
       if (state == RTCIceGatheringState.RTCIceGatheringStateComplete &&
           !completer.isCompleted) {
         completer.complete();
       }
     };
 
-    // Timeout after 3 seconds so slow candidate gathering doesn't block forever
-    await completer.future
-        .timeout(const Duration(seconds: 3), onTimeout: () {});
+    // Timeout after 4 seconds so slow candidate gathering doesn't block forever
+    await completer.future.timeout(const Duration(seconds: 4), onTimeout: () {
+      debugPrint(
+          '[WEBRTC] ICE Gathering reached timeout (4s), continuing with gathered candidates.');
+    });
   }
 
   Future<void> _waitForDataChannelsOpen(
@@ -213,16 +257,18 @@ class WebRtcConnectionManager {
       if (ch.state == RTCDataChannelState.RTCDataChannelOpen) return;
       final completer = Completer<void>();
       ch.onDataChannelState = (state) {
+        debugPrint('[WEBRTC] DataChannel (${ch.label}) State: $state');
         if (state == RTCDataChannelState.RTCDataChannelOpen &&
             !completer.isCompleted) {
           completer.complete();
         }
       };
       await completer.future.timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 15),
         onTimeout: () {
           if (ch.state != RTCDataChannelState.RTCDataChannelOpen) {
-            throw const NetworkException('DataChannel failed to open in time');
+            throw NetworkException(
+                'DataChannel (${ch.label}) failed to open in time (state: ${ch.state})');
           }
         },
       );

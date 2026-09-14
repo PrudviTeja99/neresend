@@ -43,17 +43,18 @@ void main() {
   });
 
   group('RemoteDiscoveryDriver Tests', () {
-    test('Host creates PIN session and client pairs successfully via PIN', () async {
+    test('Host creates PIN session and client pairs successfully via PIN',
+        () async {
       await hostDriver.startDiscovery();
       await clientDriver.startDiscovery();
 
-      final sessionInfo = await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host');
+      final sessionInfo =
+          await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host');
       expect(hostDriver.activeHostPin, sessionInfo.pin);
       expect(sessionInfo.sessionId.isNotEmpty, isTrue);
 
       final pairResult = await clientDriver.pairWithPin(
         pinOrUri: sessionInfo.pin,
-        sdpAnswer: 'v=0\r\no=client',
       );
 
       expect(pairResult.sdpOffer, 'v=0\r\no=host');
@@ -62,30 +63,52 @@ void main() {
       expect(clientDriver.currentPeers.length, 1);
       expect(clientDriver.currentPeers.first.alias, 'Host Alpha');
 
-      final clientAnswer = await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
-      expect(clientAnswer, 'v=0\r\no=client');
+      // Client submits real answer
+      await clientDriver.signalingClient.submitAnswer(
+        sessionId: pairResult.sessionInfo.sessionId,
+        sdpAnswer: 'v=0\r\no=client',
+        clientIdentity: clientIdentity,
+      );
+
+      final clientAnswer =
+          await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
+      expect(clientAnswer.sdpAnswer, 'v=0\r\no=client');
+      expect(
+          clientAnswer.clientIdentity?.fingerprint, clientIdentity.fingerprint);
+      expect(hostDriver.currentPeers.length, 1);
+      expect(hostDriver.currentPeers.first.alias, 'Client Beta');
     });
 
     test('Client pairs successfully via QR URI', () async {
       await hostDriver.startDiscovery();
       await clientDriver.startDiscovery();
 
-      final sessionInfo = await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host-qr');
+      final sessionInfo =
+          await hostDriver.createHostSession(sdpOffer: 'v=0\r\no=host-qr');
       expect(sessionInfo.inviteUri, startsWith('neresend://pair?session='));
 
       final pairResult = await clientDriver.pairWithPin(
         pinOrUri: sessionInfo.inviteUri,
-        sdpAnswer: 'v=0\r\no=client-qr',
       );
 
       expect(pairResult.sdpOffer, 'v=0\r\no=host-qr');
       expect(pairResult.sessionInfo.sessionId, sessionInfo.sessionId);
 
-      final clientAnswer = await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
-      expect(clientAnswer, 'v=0\r\no=client-qr');
+      await clientDriver.signalingClient.submitAnswer(
+        sessionId: pairResult.sessionInfo.sessionId,
+        sdpAnswer: 'v=0\r\no=client-qr',
+        clientIdentity: clientIdentity,
+      );
+
+      final clientAnswer =
+          await hostDriver.awaitClientAnswer(sessionId: sessionInfo.sessionId);
+      expect(clientAnswer.sdpAnswer, 'v=0\r\no=client-qr');
+      expect(
+          clientAnswer.clientIdentity?.fingerprint, clientIdentity.fingerprint);
     });
 
-    test('Stopping discovery clears active host session and peer lists', () async {
+    test('Stopping discovery clears active host session and peer lists',
+        () async {
       await hostDriver.startDiscovery();
       await hostDriver.createHostSession(sdpOffer: 'v=0');
       expect(hostDriver.activeHostPin, isNotNull);

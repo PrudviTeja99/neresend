@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:uuid/uuid.dart';
 
@@ -289,21 +290,28 @@ class TransferOrchestrator {
     // 4. Asynchronously await client's answer and attach protocol engine
     unawaited(() async {
       try {
-        final sdpAnswer = await remoteDiscovery.awaitClientAnswer(
+        debugPrint(
+            '[REMOTE HOST] Awaiting client SDP answer for session ${sessionInfo.sessionId}...');
+        final answerResult = await remoteDiscovery.awaitClientAnswer(
           sessionId: sessionInfo.sessionId,
         );
+        debugPrint(
+            '[REMOTE HOST] Received client answer, finalizing host WebRTC transport...');
         final transport = await webrtcManager.finalizeHostTransport(
           peerConnection: hostOfferData.peerConnection,
-          sdpAnswer: sdpAnswer,
+          sdpAnswer: answerResult.sdpAnswer,
           controlChannel: hostOfferData.controlChannel,
           dataChannel: hostOfferData.dataChannel,
           localFingerprint: localIdentity.fingerprint,
-          remoteFingerprint: 'REMOTE_PEER',
+          remoteFingerprint:
+              answerResult.clientIdentity?.fingerprint ?? 'REMOTE_PEER',
           sessionPin: sessionInfo.pin,
         );
+        debugPrint(
+            '[REMOTE HOST] WebRTC host transport established successfully (SAS: ${transport.sasEmojis})');
         protocolEngine.listenToTransport(transport);
-      } catch (_) {
-        // Handshake failed or timed out -> clean up
+      } catch (e, stackTrace) {
+        debugPrint('[REMOTE HOST] Remote handshake error: $e\n$stackTrace');
         await disposeActiveRemoteHostSession();
       }
     }());
@@ -318,50 +326,62 @@ class TransferOrchestrator {
   }) async {
     if (files.isEmpty) return;
 
-    // 1. Join session and fetch host's SDP offer
-    final pairResult = await remoteDiscovery.pairWithPin(
-      pinOrUri: pinOrUri,
-      sdpAnswer: 'PENDING',
-    );
+    try {
+      debugPrint('[REMOTE CLIENT] Pairing with PIN or URI: $pinOrUri');
+      // 1. Join session and fetch host's SDP offer
+      final pairResult = await remoteDiscovery.pairWithPin(
+        pinOrUri: pinOrUri,
+      );
 
-    // 2. WebRTC create answer
-    final acceptResult = await webrtcManager.acceptHostOffer(
-      sdpOffer: pairResult.sdpOffer,
-    );
+      debugPrint(
+          '[REMOTE CLIENT] Received host SDP offer, creating WebRTC answer...');
+      // 2. WebRTC create answer
+      final acceptResult = await webrtcManager.acceptHostOffer(
+        sdpOffer: pairResult.sdpOffer,
+      );
 
-    // 3. Submit real SDP answer to signaling client
-    await remoteDiscovery.signalingClient.submitAnswer(
-      sessionId: pairResult.sessionInfo.sessionId,
-      sdpAnswer: acceptResult.sdpAnswer,
-    );
+      debugPrint('[REMOTE CLIENT] Submitting SDP answer to signaling relay...');
+      // 3. Submit real SDP answer to signaling client
+      await remoteDiscovery.signalingClient.submitAnswer(
+        sessionId: pairResult.sessionInfo.sessionId,
+        sdpAnswer: acceptResult.sdpAnswer,
+        clientIdentity: localIdentity,
+      );
 
-    // 4. Finalize client transport
-    final transport = await acceptResult.finalizeTransport(
-      localFingerprint: localIdentity.fingerprint,
-      remoteFingerprint: pairResult.hostPeer.fingerprint,
-      sessionPin: pairResult.sessionInfo.pin,
-    );
+      debugPrint('[REMOTE CLIENT] Finalizing client WebRTC transport...');
+      // 4. Finalize client transport
+      final transport = await acceptResult.finalizeTransport(
+        localFingerprint: localIdentity.fingerprint,
+        remoteFingerprint: pairResult.hostPeer.fingerprint,
+        sessionPin: pairResult.sessionInfo.pin,
+      );
+      debugPrint(
+          '[REMOTE CLIENT] WebRTC client transport established (SAS: ${transport.sasEmojis})');
 
-    final totalBytes = files.fold<int>(
-        0, (sum, f) => sum + (f.existsSync() ? f.lengthSync() : 0));
+      final totalBytes = files.fold<int>(
+          0, (sum, f) => sum + (f.existsSync() ? f.lengthSync() : 0));
 
-    await storageService.addHistoryEntry(
-      TransferHistoryEntry(
-        id: const Uuid().v4(),
-        transferId: const Uuid().v4(),
-        fileName: files.length == 1
-            ? files.first.path.split('/').last
-            : '${files.length} files',
-        totalBytes: totalBytes,
-        isSender: true,
-        peerAlias: pairResult.hostPeer.alias,
-        peerFingerprint: pairResult.hostPeer.fingerprint,
-        timestamp: DateTime.now(),
-        status: 'sending',
-      ),
-    );
+      await storageService.addHistoryEntry(
+        TransferHistoryEntry(
+          id: const Uuid().v4(),
+          transferId: const Uuid().v4(),
+          fileName: files.length == 1
+              ? files.first.path.split('/').last
+              : '${files.length} files',
+          totalBytes: totalBytes,
+          isSender: true,
+          peerAlias: pairResult.hostPeer.alias,
+          peerFingerprint: pairResult.hostPeer.fingerprint,
+          timestamp: DateTime.now(),
+          status: 'sending',
+        ),
+      );
 
-    await protocolEngine.startSenderSession(transport, files);
+      await protocolEngine.startSenderSession(transport, files);
+    } catch (e, stackTrace) {
+      debugPrint('[REMOTE CLIENT] sendRemoteFiles failed: $e\n$stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> _handleIncomingTransferRequest(
