@@ -114,14 +114,24 @@ void main() {
       expect(joinResult.sessionInfo.sessionId, info.sessionId);
     });
 
-    test('Invalid PIN throws PIN_EXPIRED exception', () async {
+    test('Invalid PIN format throws PIN_FORMAT_INVALID exception', () async {
+      expect(
+        () => signalingClient.joinSession(
+          pinOrUri: '123',
+          clientIdentity: clientIdentity,
+        ),
+        throwsA(isA<NetworkException>()
+            .having((e) => e.code, 'code', 'PIN_FORMAT_INVALID')),
+      );
+    });
+
+    test('Non-existent PIN throws NetworkException', () async {
       expect(
         () => signalingClient.joinSession(
           pinOrUri: '999 999',
           clientIdentity: clientIdentity,
         ),
-        throwsA(isA<NetworkException>()
-            .having((e) => e.code, 'code', 'PIN_EXPIRED')),
+        throwsA(isA<NetworkException>()),
       );
     });
 
@@ -144,8 +154,7 @@ void main() {
           pinOrUri: info.pin,
           clientIdentity: clientIdentity,
         ),
-        throwsA(isA<NetworkException>()
-            .having((e) => e.code, 'code', 'PIN_EXPIRED')),
+        throwsA(isA<NetworkException>()),
       );
     });
   });

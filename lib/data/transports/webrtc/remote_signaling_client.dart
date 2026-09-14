@@ -123,52 +123,129 @@ class RemoteSignalingClient {
     return '$p1 $p2';
   }
 
-  /// Normalize a PIN by stripping whitespace
+  /// Normalize a PIN by stripping whitespace, hyphens, and formatting chars
   static String normalizePin(String pin) {
-    return pin.replaceAll(RegExp(r'\s+'), '').trim();
+    return pin.replaceAll(RegExp(r'[\s\-]+'), '').trim();
   }
 
-  Future<void> _publishToRelay(String topic, Map<String, dynamic> data) async {
+  Future<void> _publishToRelay(
+    String topic,
+    Map<String, dynamic> data,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/$topic');
+
     try {
-      final uri = Uri.parse('$_baseUrl/$topic');
+      debugPrint('[SIGNALING] POST $uri');
+      debugPrint(
+        '[SIGNALING] Payload type=${data['type']}, sessionId=${data['sessionId']}',
+      );
+
       final request = await _httpClient.postUrl(uri);
       request.headers.set('Content-Type', 'application/json');
       request.write(jsonEncode(data));
-      final response =
-          await request.close().timeout(const Duration(seconds: 4));
-      await response.drain();
-    } catch (_) {
-      // Best-effort network relay
+
+      final response = await request.close().timeout(
+        const Duration(seconds: 8),
+      );
+
+      final responseBody = await response
+          .transform(utf8.decoder)
+          .join();
+
+      debugPrint(
+        '[SIGNALING] POST response: ${response.statusCode} ${response.reasonPhrase}',
+      );
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint('[SIGNALING] Relay POST error body: $responseBody');
+        throw NetworkException(
+          'Relay publish failed: HTTP ${response.statusCode}',
+          code: 'RELAY_PUBLISH_FAILED',
+        );
+      }
+
+      debugPrint('[SIGNALING] Published successfully to $topic');
+    } catch (e, stackTrace) {
+      debugPrint('[SIGNALING] Publish failed for $topic: $e');
+      debugPrint('$stackTrace');
+      rethrow;
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchLatestFromRelay(String topic) async {
-    try {
-      final uri = Uri.parse('$_baseUrl/$topic/json?poll=1');
-      final request = await _httpClient.getUrl(uri);
-      final response =
-          await request.close().timeout(const Duration(seconds: 4));
-      if (response.statusCode != 200) return null;
+  Future<Map<String, dynamic>?> _fetchLatestFromRelay(
+    String topic,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/$topic/json?poll=1');
 
-      final body = await response.transform(utf8.decoder).join();
-      final lines = body.split('\n');
+    try {
+      debugPrint('[SIGNALING] GET $uri');
+
+      final request = await _httpClient.getUrl(uri);
+
+      final response = await request.close().timeout(
+        const Duration(seconds: 8),
+      );
+
+      final body = await response
+          .transform(utf8.decoder)
+          .join();
+
+      debugPrint(
+        '[SIGNALING] GET response: ${response.statusCode} ${response.reasonPhrase}',
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint('[SIGNALING] Relay response body: $body');
+
+        throw NetworkException(
+          'Relay returned HTTP ${response.statusCode}',
+          code: 'RELAY_FETCH_FAILED',
+        );
+      }
+
       Map<String, dynamic>? latestPayload;
 
-      for (final line in lines) {
+      for (final line in body.split('\n')) {
         final trimmed = line.trim();
         if (trimmed.isEmpty) continue;
+
         try {
-          final event = jsonDecode(trimmed) as Map<String, dynamic>;
-          if (event['event'] == 'message' && event['message'] != null) {
-            final rawMessage = event['message'] as String;
-            final payload = jsonDecode(rawMessage) as Map<String, dynamic>;
-            latestPayload = payload;
+          final event = jsonDecode(trimmed);
+
+          if (event is! Map<String, dynamic>) {
+            debugPrint('[SIGNALING] Unexpected event: $event');
+            continue;
           }
-        } catch (_) {}
+
+          if (event['event'] == 'message' &&
+              event['message'] is String) {
+            final payload = jsonDecode(event['message']);
+
+            if (payload is Map<String, dynamic>) {
+              latestPayload = payload;
+            }
+          }
+        } catch (e) {
+          debugPrint('[SIGNALING] Could not parse relay line: $e');
+          debugPrint('[SIGNALING] Line: $trimmed');
+        }
       }
+
+      if (latestPayload == null) {
+        debugPrint(
+          '[SIGNALING] No valid message found on topic $topic',
+        );
+      } else {
+        debugPrint(
+          '[SIGNALING] Received payload type=${latestPayload['type']} sessionId=${latestPayload['sessionId']}',
+        );
+      }
+
       return latestPayload;
-    } catch (_) {
-      return null;
+    } catch (e, stackTrace) {
+      debugPrint('[SIGNALING] Fetch failed for $topic: $e');
+      debugPrint('$stackTrace');
+      rethrow;
     }
   }
 
@@ -207,19 +284,24 @@ class RemoteSignalingClient {
     _pinToSessionId[normalizedPin] = sessionId;
 
     debugPrint(
-        '[SIGNALING] Created session $sessionId with PIN $pin (relay: neresend-pin-$normalizedPin)');
+        '[SIGNALING] Host PIN="$pin", normalized="$normalizedPin", topic="neresend-pin-$normalizedPin"');
 
-    // Publish offer to public relay asynchronously so sender on another device can discover it
-    unawaited(_publishToRelay('neresend-pin-$normalizedPin', {
-      'type': 'OFFER',
-      'sessionId': sessionId,
-      'authToken': authToken,
-      'pin': pin,
-      'inviteUri': inviteUri,
-      'createdAt': info.createdAt.toIso8601String(),
-      'hostIdentity': hostIdentity.toJson(),
-      'sdpOffer': sdpOffer,
-    }));
+    // Publish offer to public relay so sender on another device can discover it
+    try {
+      await _publishToRelay('neresend-pin-$normalizedPin', {
+        'type': 'OFFER',
+        'sessionId': sessionId,
+        'authToken': authToken,
+        'pin': pin,
+        'inviteUri': inviteUri,
+        'createdAt': info.createdAt.toIso8601String(),
+        'hostIdentity': hostIdentity.toJson(),
+        'sdpOffer': sdpOffer,
+      });
+    } catch (e) {
+      debugPrint('[SIGNALING] Failed to publish initial session offer to relay: $e');
+      // If network relay is unavailable, local session record is still stored for local/same-process rendezvous
+    }
 
     return info;
   }
@@ -237,7 +319,15 @@ class RemoteSignalingClient {
     final parsed = RemoteSessionInfo.parseInviteUri(pinOrUri);
     final normalizedPin = normalizePin(parsed.pin);
     debugPrint(
-        '[SIGNALING] Joining session with PIN/URI: $pinOrUri (normalized: $normalizedPin, sessionId: ${parsed.sessionId})');
+        '[SIGNALING] Parsed invite: sessionId=${parsed.sessionId}, pin="${parsed.pin}", normalized="$normalizedPin"');
+
+    if (parsed.sessionId == null &&
+        (normalizedPin.length != 6 || int.tryParse(normalizedPin) == null)) {
+      throw const NetworkException(
+        'The entered PIN format is invalid. Please enter a 6-digit PIN.',
+        code: 'PIN_FORMAT_INVALID',
+      );
+    }
 
     String? sessionId = parsed.sessionId;
     sessionId ??= _pinToSessionId[normalizedPin];
@@ -268,8 +358,19 @@ class RemoteSignalingClient {
     if (normalizedPin.isNotEmpty) {
       debugPrint(
           '[SIGNALING] Polling relay topic neresend-pin-$normalizedPin for remote offer...');
-      final remoteOffer =
-          await _fetchLatestFromRelay('neresend-pin-$normalizedPin');
+      Map<String, dynamic>? remoteOffer;
+      try {
+        remoteOffer =
+            await _fetchLatestFromRelay('neresend-pin-$normalizedPin');
+      } on NetworkException {
+        rethrow;
+      } catch (e) {
+        throw NetworkException(
+          'Could not contact signaling relay: $e',
+          code: 'RELAY_NETWORK_ERROR',
+        );
+      }
+
       if (remoteOffer != null &&
           remoteOffer['sessionId'] != null &&
           remoteOffer['sdpOffer'] != null) {
@@ -316,9 +417,6 @@ class RemoteSignalingClient {
           debugPrint(
               '[SIGNALING] Remote offer was expired (created: $rCreatedAt)');
         }
-      } else {
-        debugPrint(
-            '[SIGNALING] No active offer found on relay topic neresend-pin-$normalizedPin');
       }
     }
 
@@ -348,14 +446,22 @@ class RemoteSignalingClient {
     }
 
     // Publish answer to relay so remote host gets notified
-    await _publishToRelay('neresend-ans-$sessionId', {
-      'type': 'ANSWER',
-      'sessionId': sessionId,
-      'sdpAnswer': sdpAnswer,
-      if (clientIdentity != null) 'clientIdentity': clientIdentity.toJson(),
-    });
-    debugPrint(
-        '[SIGNALING] Published answer to relay topic neresend-ans-$sessionId');
+    try {
+      await _publishToRelay('neresend-ans-$sessionId', {
+        'type': 'ANSWER',
+        'sessionId': sessionId,
+        'sdpAnswer': sdpAnswer,
+        if (clientIdentity != null) 'clientIdentity': clientIdentity.toJson(),
+      });
+      debugPrint(
+          '[SIGNALING] Published answer to relay topic neresend-ans-$sessionId');
+    } catch (e) {
+      debugPrint('[SIGNALING] Failed to publish answer to relay: $e');
+      // If local session exists, the completer was already completed above
+      if (record == null) {
+        rethrow;
+      }
+    }
   }
 
   /// Host awaits the client's SDP answer
@@ -399,32 +505,37 @@ class RemoteSignalingClient {
         return;
       }
 
-      final ansData = await _fetchLatestFromRelay('neresend-ans-$sessionId');
-      if (ansData != null && ansData['sdpAnswer'] != null) {
-        final answer = ansData['sdpAnswer'] as String;
-        DeviceIdentity? clientIdent;
-        if (ansData['clientIdentity'] != null &&
-            ansData['clientIdentity'] is Map) {
-          try {
-            clientIdent = DeviceIdentity.fromWireJson(
-                ansData['clientIdentity'] as Map<String, dynamic>);
-          } catch (_) {}
+      try {
+        final ansData = await _fetchLatestFromRelay('neresend-ans-$sessionId');
+        if (ansData != null && ansData['sdpAnswer'] != null) {
+          final answer = ansData['sdpAnswer'] as String;
+          DeviceIdentity? clientIdent;
+          if (ansData['clientIdentity'] != null &&
+              ansData['clientIdentity'] is Map) {
+            try {
+              clientIdent = DeviceIdentity.fromWireJson(
+                  ansData['clientIdentity'] as Map<String, dynamic>);
+            } catch (_) {}
+          }
+          timer.cancel();
+          record.sdpAnswer = answer;
+          if (clientIdent != null) record.clientIdentity = clientIdent;
+          final result = (
+            sdpAnswer: answer,
+            clientIdentity: clientIdent ?? record.clientIdentity,
+          );
+          debugPrint(
+              '[SIGNALING] Received SDP answer for session $sessionId (client: ${clientIdent?.alias})');
+          if (!record.answerCompleter.isCompleted) {
+            record.answerCompleter.complete(result);
+          }
+          if (!completer.isCompleted) {
+            completer.complete(result);
+          }
         }
-        timer.cancel();
-        record.sdpAnswer = answer;
-        if (clientIdent != null) record.clientIdentity = clientIdent;
-        final result = (
-          sdpAnswer: answer,
-          clientIdentity: clientIdent ?? record.clientIdentity,
-        );
-        debugPrint(
-            '[SIGNALING] Received SDP answer for session $sessionId (client: ${clientIdent?.alias})');
-        if (!record.answerCompleter.isCompleted) {
-          record.answerCompleter.complete(result);
-        }
-        if (!completer.isCompleted) {
-          completer.complete(result);
-        }
+      } catch (e) {
+        // Transient network failure during polling; log and retry next tick
+        debugPrint('[SIGNALING] Polling relay for answer notice: $e');
       }
     });
 
